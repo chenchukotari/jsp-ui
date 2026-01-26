@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import "./Form.css";
 import { uploadToCloudinary } from "./cloudinary"; // keep your existing helper
 
+const API_BASE_URL = "https://aadhaar-backend-uu1u.onrender.com";
+
 /* =====================
    CONSTANT DATA
    ===================== */
@@ -105,38 +107,38 @@ export default function JanasenaForm() {
 
   // Lifted person data
   const [memberData, setMemberData] = useState({});
-  
-   const [nomineeData, setNomineeData] = useState({
-  adhaarNumber: "",
-  fullName: "",
-  dob: "",
-  gender: "",
-  mobileNumber: "",
-  education: "",
-  profession: "",
-  religion: "",
-  reservation: "",
-  caste: "",
-  membership: "No",
-  membershipId: ""
-});
+
+  const [nomineeData, setNomineeData] = useState({
+    adhaarNumber: "",
+    fullName: "",
+    dob: "",
+    gender: "",
+    mobileNumber: "",
+    education: "",
+    profession: "",
+    religion: "",
+    reservation: "",
+    caste: "",
+    membership: "No",
+    membershipId: ""
+  });
 
 
   // Images state keyed by owner: 'member' or 'nominee'
   const [images, setImages] = useState({
-  member: {
-    aadhaarFile: "",     // ✅ REAL File object
-    photoFile: "",       // ✅ REAL File object
-    aadhaarPreview: "",
-    photoPreview: ""
-  },
-  nominee: {
-    aadhaarFile: "",
-    photoFile: "",
-    aadhaarPreview: "",
-    photoPreview: ""
-  }
-});
+    member: {
+      aadhaarFile: "",     // ✅ REAL File object
+      photoFile: "",       // ✅ REAL File object
+      aadhaarPreview: "",
+      photoPreview: ""
+    },
+    nominee: {
+      aadhaarFile: "",
+      photoFile: "",
+      aadhaarPreview: "",
+      photoPreview: ""
+    }
+  });
 
 
   const handleLocationChange = (name, value) => {
@@ -157,7 +159,7 @@ export default function JanasenaForm() {
       [which]: { ...p[which], ...payload }
     }));
   };
-  
+
   const checkNomineeAadhaar = async (aadhaar) => {
     if (!aadhaar || aadhaar.length !== 12) return;
 
@@ -165,7 +167,7 @@ export default function JanasenaForm() {
       console.log("🔍 Checking nominee Aadhaar:", aadhaar);
 
       const res = await fetch(
-        `http://localhost:8000/person/by-aadhaar/${aadhaar}`
+        `${API_BASE_URL}/person/by-aadhaar/${aadhaar}`
       );
 
       // VERY IMPORTANT
@@ -198,56 +200,58 @@ export default function JanasenaForm() {
     }
   };
 
- const handleAadhaarOCR = async (file, owner) => {
-   try {
-    // 1️⃣ Upload to Cloudinary
-     const imageUrl = await uploadToCloudinary(file);
+  const handleAadhaarOCR = async (file, owner) => {
+    try {
+      console.log(`Using API: ${API_BASE_URL}`);
 
-    // 2️⃣ Call OCR API
-     const res = await fetch("http://localhost:8000/ocr/aadhaar", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ image_url: imageUrl })
-    });
+      // 1️⃣ Upload to Cloudinary
+      const imageUrl = await uploadToCloudinary(file);
 
-     const ocr = await res.json();
-     console.log("🧠 OCR RESULT:", ocr);
+      // 2️⃣ Call OCR API
+      const res = await fetch(`${API_BASE_URL}/ocr/aadhaar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: imageUrl })
+      });
 
-    // 3️⃣ NOMINEE → check DB first
-     if (owner === "nominee") {
-       const check = await fetch(
-        ` http://localhost:8000/person/by-aadhaar/${ocr.aadhaar_number}`
-       );
+      const ocr = await res.json();
+      console.log("🧠 OCR RESULT:", ocr);
 
-       if (check.ok) {
-         const dbData = await check.json();
-         console.log("🟢 Nominee exists → DB autofill");
+      // 3️⃣ NOMINEE → check DB first
+      if (owner === "nominee") {
+        const check = await fetch(
+          `${API_BASE_URL}/person/by-aadhaar/${ocr.aadhaar_number}`
+        );
 
-         setNomineeData(dbData);
-         return;
+        if (check.ok) {
+          const dbData = await check.json();
+          console.log("🟢 Nominee exists → DB autofill");
+
+          setNomineeData(dbData);
+          return;
+        }
       }
+
+      // 4️⃣ OCR fallback autofill
+      const autofill = {
+        adhaarNumber: ocr.aadhaar_number,
+        fullName: ocr.full_name,
+        gender: ocr.gender,
+        dob: ocr.dob,
+        mobileNumber: ocr.mobile_number,
+        pincode: ocr.pincode
+      };
+
+      owner === "member"
+        ? setMemberData(p => ({ ...p, ...autofill }))
+        : setNomineeData(p => ({ ...p, ...autofill }));
+
+      console.log("🔁 OCR autofill applied");
+
+    } catch (err) {
+      console.error("OCR failed", err);
     }
-
-    // 4️⃣ OCR fallback autofill
-     const autofill = {
-       adhaarNumber: ocr.aadhaar_number,
-       fullName: ocr.full_name,
-       gender: ocr.gender,
-       dob: ocr.dob,
-       mobileNumber: ocr.mobile_number,
-       pincode: ocr.pincode
-    };
-
-     owner === "member"
-       ? setMemberData(p => ({ ...p, ...autofill }))
-       : setNomineeData(p => ({ ...p, ...autofill }));
-
-     console.log("🔁 OCR autofill applied");
-
-   } catch (err) {
-     console.error("OCR failed", err);
-   }
-};
+  };
 
   /* =====================
      SUBMIT
@@ -256,12 +260,22 @@ export default function JanasenaForm() {
     try {
       console.log("🧪 IMAGE STATE BEFORE UPLOAD", images);
 
+      // 🔹 Helper to format DOB (DD/MM/YYYY -> YYYY-MM-DD)
+      const formatDate = (dateStr) => {
+        if (!dateStr) return null;
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateStr;
+      };
+
       // 🔹 FLATTEN payload to match backend schema
       const payload = {
         // ---- member (main person) ----
         aadhaar_number: memberData.adhaarNumber,
         full_name: memberData.fullName,
-        dob: memberData.dob,
+        dob: formatDate(memberData.dob),
         gender: memberData.gender,
         mobile_number: memberData.mobileNumber,
         pincode: location.pincode,
@@ -300,7 +314,7 @@ export default function JanasenaForm() {
       // ❗STOP HERE while debugging
       // return;
 
-      const res = await fetch("http://localhost:8000/person/submit", {
+      const res = await fetch(`${API_BASE_URL}/person/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -378,7 +392,7 @@ export default function JanasenaForm() {
                 </ul>
               )}
             </div>
-            
+
             <div>
               <label>pincode</label>
               <input value={location.pincode} onChange={(e) => handleLocationChange("pincode", e.target.value)} />
@@ -473,34 +487,28 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
 
   const handleChange = (e) => {
     const { name, value: v } = e.target;
-    setForm((prev) => {
-      const updated = { ...prev, [name]: v };
-      onChange && onChange(updated);
-      return updated;
-    });
+    const updated = { ...form, [name]: v };
+    setForm(updated);
+    onChange && onChange(updated);
   };
 
   const handleReservationChange = (e) => {
     const v = e.target.value;
-    setForm((prev) => {
-      const updated = { ...prev, reservation: v, caste: "" };
-      onChange && onChange(updated);
-      return updated;
-    });
+    const updated = { ...form, reservation: v, caste: "" };
+    setForm(updated);
+    onChange && onChange(updated);
   };
 
   const handleMembershipChange = (e) => {
     const v = e.target.value;
-    setForm((prev) => {
-      const updated = { ...prev, membership: v, membershipId: v === "Yes" ? prev.membershipId : "" };
-      onChange && onChange(updated);
-      return updated;
-    });
+    const updated = { ...form, membership: v, membershipId: v === "Yes" ? form.membershipId : "" };
+    setForm(updated);
+    onChange && onChange(updated);
   };
 
   const casteOptions = CASTE_BY_RESERVATION[form.reservation] || [];
-  
-  
+
+
   return (
     <div className="card">
       <div className="card-header">{title}</div>
@@ -519,19 +527,19 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
             ))}
           </select>
         </div>
-        
+
         <label>Adhaar Number</label>
-<input
-  name="adhaarNumber"
-  value={form.adhaarNumber}
-  onChange={handleChange}
-  onBlur={() => {
-    if (which === "nominee" && onAadhaarBlur) {
-      onAadhaarBlur(form.adhaarNumber);
-    }
-  }}
-  placeholder="Enter Adhaar number"
-/>
+        <input
+          name="adhaarNumber"
+          value={form.adhaarNumber}
+          onChange={handleChange}
+          onBlur={() => {
+            if (which === "nominee" && onAadhaarBlur) {
+              onAadhaarBlur(form.adhaarNumber);
+            }
+          }}
+          placeholder="Enter Adhaar number"
+        />
 
         <label>Mobile Number</label>
         <input name="mobileNumber" value={form.mobileNumber} onChange={handleChange} placeholder="Enter mobile number" />

@@ -304,6 +304,27 @@ export default function JanasenaForm() {
     }
   };
 
+  const handleReset = () => {
+    // reset everything
+    setVillageInput("");
+    setLocation({
+      constituency: "",
+      mandal: "",
+      panchayathi: "",
+      ward: "",
+      pincode: "",
+      latitude: "",
+      longitude: ""
+    });
+    setMemberData({});
+    setNomineeData({});
+    setImages({
+      member: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" },
+      nominee: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" }
+    });
+    setFormKey(prev => prev + 1);
+  };
+
   /* =====================
      SUBMIT
      ===================== */
@@ -376,6 +397,9 @@ export default function JanasenaForm() {
       const data = await res.json();
       alert("Saved successfully!");
       console.log("Backend response:", data);
+
+      // 🔥 Auto-reset after successful submit
+      handleReset();
 
     } catch (err) {
       console.error(err);
@@ -481,18 +505,7 @@ export default function JanasenaForm() {
           <button className="btn primary" onClick={handleSubmit}>Submit</button>
           <button
             className="btn"
-            onClick={() => {
-              // reset everything
-              setVillageInput("");
-              setLocation({ constituency: "", mandal: "", panchayathi: "", ward: "", pincode: "", latitude: "", longitude: "" });
-              setMemberData({});
-              setNomineeData({});
-              setImages({
-                member: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" },
-                nominee: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" }
-              });
-              setFormKey(prev => prev + 1);
-            }}
+            onClick={handleReset}
           >
             Reset
           </button>

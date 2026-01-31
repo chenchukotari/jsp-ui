@@ -395,11 +395,10 @@ export default function JanasenaForm() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
+      console.log("✅ Data saved, resetting form...");
+      handleReset();
       alert("Saved successfully!");
       console.log("Backend response:", data);
-
-      // 🔥 Auto-reset after successful submit
-      handleReset();
 
     } catch (err) {
       console.error(err);

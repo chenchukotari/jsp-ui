@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import "./Form.css";
 import { uploadToCloudinary } from "./cloudinary"; // keep your existing helper
 
-const API_BASE_URL = "https://aadhaar-backend-uu1u.onrender.com";
-
 /* =====================
    CONSTANT DATA
    ===================== */
+
+const API_BASE_URL = "https://jsp-backend-1.onrender.com";
 
 const VILLAGE_NAMES = [
   "Muchivolu",
@@ -140,6 +140,9 @@ export default function JanasenaForm() {
     }
   });
 
+  // OCR Loading state
+  const [ocrLoading, setOcrLoading] = useState({ member: false, nominee: false });
+
 
   const handleLocationChange = (name, value) => {
     setLocation((p) => ({ ...p, [name]: value }));
@@ -202,54 +205,101 @@ export default function JanasenaForm() {
 
   const handleAadhaarOCR = async (file, owner) => {
     try {
+      setOcrLoading(prev => ({ ...prev, [owner]: true }));
       console.log(`Using API: ${API_BASE_URL}`);
 
       // 1️⃣ Upload to Cloudinary
       const imageUrl = await uploadToCloudinary(file);
+      console.log("✅ Aadhaar uploaded:", imageUrl);
+
+      // 🔥 FIX: Update state with the uploaded URL
+      setImages((p) => ({
+        ...p,
+        [owner]: { ...p[owner], aadhaarUrl: imageUrl }
+      }));
 
       // 2️⃣ Call OCR API
-      const res = await fetch(`${API_BASE_URL}/ocr/aadhaar`, {
+      const formData = new FormData();
+      formData.append("file", file); // Send the raw file
+
+      const res = await fetch(`${API_BASE_URL}/ocr-parse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: imageUrl })
+        body: formData
       });
 
-      const ocr = await res.json();
-      console.log("🧠 OCR RESULT:", ocr);
+      if (!res.ok) {
+        throw new Error(`OCR API failed with status: ${res.status}`);
+      }
+
+      const ocrResponse = await res.json();
+      console.log("🧠 OCR RESULT:", ocrResponse);
+
+      // Map backend response 'extracted' to our needs
+      // Backend returns: { extracted: { name, dob, address, aadhaar, gender } }
+      const ocr = ocrResponse.extracted || {};
+
+      // Clean up aadhaar number (remove spaces)
+      const aadhaarClean = ocr.aadhaar ? ocr.aadhaar.replace(/\s/g, "") : "";
 
       // 3️⃣ NOMINEE → check DB first
-      if (owner === "nominee") {
+      if (owner === "nominee" && aadhaarClean) {
         const check = await fetch(
-          `${API_BASE_URL}/person/by-aadhaar/${ocr.aadhaar_number}`
+          `${API_BASE_URL}/person/by-aadhaar/${aadhaarClean}`
         );
 
         if (check.ok) {
           const dbData = await check.json();
-          console.log("🟢 Nominee exists → DB autofill");
+          console.log("🟢 Nominee exists → DB autofill", dbData);
 
-          setNomineeData(dbData);
+          setNomineeData(prev => ({
+            ...prev,
+            adhaarNumber: dbData.aadhaar_number,
+            fullName: dbData.full_name || "",
+            dob: dbData.dob || "",
+            gender: dbData.gender || "",
+            mobileNumber: dbData.mobile_number || "",
+            education: dbData.education || "",
+            profession: dbData.profession || "",
+            religion: dbData.religion || "",
+            reservation: dbData.reservation || "",
+            caste: dbData.caste || ""
+          }));
           return;
         }
       }
 
       // 4️⃣ OCR fallback autofill
       const autofill = {
-        adhaarNumber: ocr.aadhaar_number,
-        fullName: ocr.full_name,
+        adhaarNumber: aadhaarClean,
+        fullName: ocr.name,
         gender: ocr.gender,
         dob: ocr.dob,
-        mobileNumber: ocr.mobile_number,
-        pincode: ocr.pincode
+        // mobileNumber: ocr.mobile_number, // Backend extraction doesn't seem to return mobile number reliably currently
+        // pincode: ocr.pincode // Backend extraction currently returns full address string, logic might need adjustment if pincode is needed
       };
 
-      owner === "member"
-        ? setMemberData(p => ({ ...p, ...autofill }))
-        : setNomineeData(p => ({ ...p, ...autofill }));
+      if (owner === "member") {
+        setMemberData(p => ({ ...p, ...autofill }));
+        // Also update global location pincode if we can extract it from address
+        // Simple primitive check for pincode in address if available
+        if (ocr.address) {
+          const pinMatch = ocr.address.match(/\b\d{6}\b/);
+          if (pinMatch) {
+            setLocation(p => ({ ...p, pincode: pinMatch[0] }));
+          }
+        }
+      } else {
+        setNomineeData(p => ({ ...p, ...autofill }));
+      }
 
       console.log("🔁 OCR autofill applied");
 
+
     } catch (err) {
       console.error("OCR failed", err);
+      alert("OCR parsing failed: " + err.message);
+    } finally {
+      setOcrLoading(prev => ({ ...prev, [owner]: false }));
     }
   };
 
@@ -271,32 +321,32 @@ export default function JanasenaForm() {
       };
 
       // 🔹 FLATTEN payload to match backend schema
+      // Use || "" to ensure we send empty string instead of undefined for "optional" fields
       const payload = {
         // ---- member (main person) ----
-        aadhaar_number: memberData.adhaarNumber,
-        full_name: memberData.fullName,
+        aadhaar_number: memberData.adhaarNumber || "",
+        full_name: memberData.fullName || "",
         dob: formatDate(memberData.dob),
-        gender: memberData.gender,
-        mobile_number: memberData.mobileNumber,
-        pincode: location.pincode,
+        gender: memberData.gender || "",
+        mobile_number: memberData.mobileNumber || "",
+        pincode: location.pincode || "",
 
-        education: memberData.education,
-        profession: memberData.profession,
-        religion: memberData.religion,
-        reservation: memberData.reservation,
-        caste: memberData.caste,
+        education: memberData.education || "",
+        profession: memberData.profession || "",
+        religion: memberData.religion || "",
+        reservation: memberData.reservation || "",
+        caste: memberData.caste || "",
 
-        membership: memberData.membership,
-        membership_id: memberData.membershipId,
+        membership: memberData.membership || "No",
+        membership_id: memberData.membershipId || "",
 
         // ---- location ----
-        constituency: location.constituency,
-        mandal: location.mandal,
-        panchayathi: location.panchayathi,
-        village: villageInput,
-        ward_number: location.ward,
-        latitude: location.latitude ? Number(location.latitude) : null,
-        longitude: location.longitude ? Number(location.longitude) : null,
+        constituency: location.constituency || "",
+        mandal: location.mandal || "",
+        panchayathi: location.panchayathi || "",
+        village: villageInput || "",
+        ward_number: location.ward || "",
+        // latitude & longitude removed as requested
 
         // ---- images (Cloudinary URLs) ----
         aadhaar_image_url: images.member.aadhaarUrl || null,
@@ -304,7 +354,7 @@ export default function JanasenaForm() {
 
 
         // ---- nominee ----
-        nominee_id: nomineeData.adhaarNumber
+        nominee_id: nomineeData.adhaarNumber || ""
       };
 
       // 🟢 DEBUG PRINT (THIS IS WHAT YOU WANTED)
@@ -350,11 +400,7 @@ export default function JanasenaForm() {
 
             <div>
               <label>Mandal Name</label>
-              <select value={location.mandal} onChange={(e) => handleLocationChange("mandal", e.target.value)}>
-                <option value="">Select</option>
-                <option value="Mandal-1">Mandal-1</option>
-                <option value="Mandal-2">Mandal-2</option>
-              </select>
+              <input value={location.mandal} onChange={(e) => handleLocationChange("mandal", e.target.value)} />
             </div>
 
             <div>
@@ -403,15 +449,7 @@ export default function JanasenaForm() {
               <input value={location.ward} onChange={(e) => handleLocationChange("ward", e.target.value)} />
             </div>
 
-            <div>
-              <label>Latitude</label>
-              <input value={location.latitude} onChange={(e) => handleLocationChange("latitude", e.target.value)} />
-            </div>
-
-            <div>
-              <label>Longitude</label>
-              <input value={location.longitude} onChange={(e) => handleLocationChange("longitude", e.target.value)} />
-            </div>
+            {/* Latitude and Longitude Removed */}
           </div>
         </div>
 
@@ -420,11 +458,13 @@ export default function JanasenaForm() {
             owner="member"
             onUpload={handleUpload}
             onAadhaarOCR={handleAadhaarOCR}
+            isScanning={ocrLoading.member}
           />
           <UploadCard
             owner="nominee"
             onUpload={handleUpload}
             onAadhaarOCR={handleAadhaarOCR}
+            isScanning={ocrLoading.nominee}
           />
         </div>
 
@@ -462,31 +502,37 @@ export default function JanasenaForm() {
    PERSON CARD (controlled + lifted)
    ===================== */
 
+const INITIAL_PERSON_STATE = {
+  fullName: "",
+  adhaarNumber: "",
+  dob: "",
+  mobileNumber: "",
+  gender: "",
+  education: "",
+  profession: "",
+  religion: "",
+  reservation: "",
+  caste: "",
+  membership: "No",
+  membershipId: ""
+};
+
 function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
   const [form, setForm] = useState({
-    fullName: "",
-    adhaarNumber: "",
-    dob: "",
-    mobileNumber: "",
-    gender: "",
-    education: "",
-    profession: "",
-    religion: "",
-    reservation: "",
-    caste: "",
-    membership: "No",
-    membershipId: "",
+    ...INITIAL_PERSON_STATE,
     ...value
   });
 
   useEffect(() => {
     // keep local form in sync when parent updates
-    setForm((p) => ({ ...p, ...value }));
+    // MERGE with INITIAL_PERSON_STATE to ensure reset works when value is {}
+    setForm((p) => ({ ...INITIAL_PERSON_STATE, ...value }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const handleChange = (e) => {
     const { name, value: v } = e.target;
+    // ensure we keep the structure
     const updated = { ...form, [name]: v };
     setForm(updated);
     onChange && onChange(updated);
@@ -506,8 +552,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
     onChange && onChange(updated);
   };
 
-  const casteOptions = CASTE_BY_RESERVATION[form.reservation] || [];
-
+  /* Removed unused casteOptions variable assignment */
 
   return (
     <div className="card">
@@ -577,12 +622,8 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
         </select>
 
         <label>Caste</label>
-        <select name="caste" value={form.caste} onChange={handleChange} disabled={!form.reservation}>
-          <option value="">Select</option>
-          {casteOptions.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <input name="caste" value={form.caste} onChange={handleChange} placeholder="Enter Caste" />
+
 
         <label>Janasena Membership & ID</label>
         <div className="row">
@@ -608,7 +649,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
    UPLOAD CARD (handles both Aadhaar + Photo for owner)
    ===================== */
 
-function UploadCard({ owner = "member", onUpload, onAadhaarOCR }) {
+function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
   const [aadhaarFile, setAadhaarFile] = useState(null);
   const [aadhaarPreview, setAadhaarPreview] = useState("");
 
@@ -721,12 +762,14 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR }) {
         <div className="mb-4">
           <div className="font-semibold mb-2">
             Aadhaar Document ({owner})
+            {isScanning && <span style={{ marginLeft: 10, color: '#f59e0b' }}>Processing... ⏳</span>}
           </div>
 
           <div className="flex gap-2 mb-2">
             <button
               onClick={() => startCamera("aadhaar")}
               className="btn outline flex-1"
+              disabled={isScanning}
             >
               Take Photo
             </button>
@@ -736,6 +779,7 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR }) {
               accept="image/*"
               style={{ display: "none" }}
               id={`${owner}-aadhaar-file`}
+              disabled={isScanning}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
@@ -752,6 +796,7 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR }) {
             <label
               htmlFor={`${owner}-aadhaar-file`}
               className="btn outline flex-1 cursor-pointer text-center"
+              style={isScanning ? { pointerEvents: "none", opacity: 0.5 } : {}}
             >
               Choose File
             </label>

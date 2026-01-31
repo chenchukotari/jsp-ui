@@ -89,6 +89,7 @@ export default function JanasenaForm() {
   // Location & village autocomplete
   const [villageInput, setVillageInput] = useState("");
   const [showVillageList, setShowVillageList] = useState(false);
+  const [formKey, setFormKey] = useState(0); // Forcing re-mount on reset
 
   const filteredVillages = VILLAGE_NAMES.filter((v) =>
     v.toLowerCase().startsWith(villageInput.toLowerCase())
@@ -455,12 +456,14 @@ export default function JanasenaForm() {
 
         <div className="grid-2 gap">
           <UploadCard
+            key={`member-${formKey}`}
             owner="member"
             onUpload={handleUpload}
             onAadhaarOCR={handleAadhaarOCR}
             isScanning={ocrLoading.member}
           />
           <UploadCard
+            key={`nominee-${formKey}`}
             owner="nominee"
             onUpload={handleUpload}
             onAadhaarOCR={handleAadhaarOCR}
@@ -469,8 +472,8 @@ export default function JanasenaForm() {
         </div>
 
         <div className="grid-2 gap">
-          <PersonCard title="Member Details" which="member" value={memberData} onChange={(d) => handlePersonChange("member", d)} />
-          <PersonCard title="Nominee Details" which="nominee" value={nomineeData} onChange={(d) => handlePersonChange("nominee", d)} onAadhaarBlur={checkNomineeAadhaar} />
+          <PersonCard key={`member-card-${formKey}`} title="Member Details" which="member" value={memberData} onChange={(d) => handlePersonChange("member", d)} />
+          <PersonCard key={`nominee-card-${formKey}`} title="Nominee Details" which="nominee" value={nomineeData} onChange={(d) => handlePersonChange("nominee", d)} onAadhaarBlur={checkNomineeAadhaar} />
         </div>
 
 
@@ -488,6 +491,7 @@ export default function JanasenaForm() {
                 member: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" },
                 nominee: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" }
               });
+              setFormKey(prev => prev + 1);
             }}
           >
             Reset
@@ -660,6 +664,7 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
   const canvasRef = useRef(null);
 
   const [capturingFor, setCapturingFor] = useState(null); // "aadhaar" | "photo"
+  const [facingMode, setFacingMode] = useState("user"); // "user" | "environment"
 
   useEffect(() => {
     // cleanup on unmount
@@ -675,7 +680,9 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
   const startCamera = async (type) => {
     setCapturingFor(type);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facingMode }
+      });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
@@ -683,6 +690,29 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
     } catch (err) {
       alert("Camera not accessible: " + err.message);
       setCapturingFor(null);
+    }
+  };
+
+  const switchCamera = async () => {
+    const newMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newMode);
+
+    // Stop current stream
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+    }
+
+    // Restart with new mode
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newMode }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch (err) {
+      console.error("Switch failed", err);
     }
   };
 
@@ -878,6 +908,13 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
               className="btn outline w-full mt-2"
             >
               Capture
+            </button>
+            <button
+              onClick={switchCamera}
+              className="btn outline w-full mt-2"
+              style={{ borderColor: "#10b981", color: "#10b981" }}
+            >
+              Switch Camera ({facingMode === "user" ? "Front" : "Back"})
             </button>
           </div>
         )}

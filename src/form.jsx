@@ -323,83 +323,64 @@ export default function JanasenaForm() {
   /* =====================
      SUBMIT
      ===================== */
-  const buildPayload = () => {
-    const formatDate = (dateStr) => {
-      if (!dateStr) return null;
-      const parts = dateStr.split("/");
-      if (parts.length === 3) {
-        return `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-      return dateStr;
-    };
-
-    return {
-      aadhaar_number: memberData.adhaarNumber || "",
-      full_name: memberData.fullName || "",
-      dob: formatDate(memberData.dob),
-      gender: memberData.gender || "",
-      mobile_number: memberData.mobileNumber || "",
-      pincode: location.pincode || "",
-
-      education: memberData.education || "",
-      profession: memberData.profession || "",
-      religion: memberData.religion || "",
-      reservation: memberData.reservation || "",
-      caste: memberData.caste || "",
-
-      membership: memberData.membership || "No",
-      membership_id: memberData.membershipId || "",
-
-      constituency: location.constituency || "",
-      mandal: location.mandal || "",
-      panchayathi: location.panchayathi || "",
-      village: villageInput || "",
-      ward_number: location.ward || "",
-
-      aadhaar_image_url: images.member.aadhaarUrl || null,
-      photo_url: images.member.photoUrl || null,
-
-      nominee_id: nomineeData.adhaarNumber || ""
-    };
-  };
-
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     try {
-      const payload = buildPayload();
-      console.log("📦 CREATE PAYLOAD", payload);
-      const res = await fetch(`${API_BASE_URL}/person/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      console.log("✅ Created, resetting form", data);
-      handleReset();
-      alert("Created successfully!");
-    } catch (err) {
-      console.error(err);
-      alert("Create failed: " + err.message);
-    }
-  };
+      console.log("🧪 IMAGE STATE BEFORE UPLOAD", images);
 
-  const handleUpdate = async () => {
-    try {
-      const payload = buildPayload();
-      console.log("📦 UPDATE PAYLOAD", payload);
+      const formatDate = (dateStr) => {
+        if (!dateStr) return null;
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateStr;
+      };
+
+      const payload = {
+        aadhaar_number: memberData.adhaarNumber || "",
+        full_name: memberData.fullName || "",
+        dob: formatDate(memberData.dob),
+        gender: memberData.gender || "",
+        mobile_number: memberData.mobileNumber || "",
+        pincode: location.pincode || "",
+
+        education: memberData.education || "",
+        profession: memberData.profession || "",
+        religion: memberData.religion || "",
+        reservation: memberData.reservation || "",
+        caste: memberData.caste || "",
+
+        membership: memberData.membership || "No",
+        membership_id: memberData.membershipId || "",
+
+        constituency: location.constituency || "",
+        mandal: location.mandal || "",
+        panchayathi: location.panchayathi || "",
+        village: villageInput || "",
+        ward_number: location.ward || "",
+
+        aadhaar_image_url: images.member.aadhaarUrl || null,
+        photo_url: images.member.photoUrl || null,
+
+        nominee_id: nomineeData.adhaarNumber || ""
+      };
+
+      console.log("📦 FINAL PAYLOAD", payload);
+
       const res = await fetch(`${API_BASE_URL}/person/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      console.log("✅ Updated, resetting form", data);
+      console.log("✅ Submitted, resetting form", data);
       handleReset();
-      alert("Updated successfully!");
+      alert("Submitted successfully!");
     } catch (err) {
       console.error(err);
-      alert("Update failed: " + err.message);
+      alert("Submit failed: " + err.message);
     }
   };
 
@@ -500,22 +481,17 @@ export default function JanasenaForm() {
 
         {memberExists && (
           <div style={{ padding: '8px 12px', background: '#fff7cc', borderRadius: 8, marginBottom: 12, border: '1px solid #f59e0b' }}>
-            ⚠️ This person is already registered as a member. To update the existing record use "Update existing member".
+            ⚠️ This person is already registered as a member.
           </div>
         )}
 
         <div className="actions">
-          {!memberExists ? (
-            <button className="btn primary" onClick={handleCreate}>Create</button>
-          ) : (
-            <button className="btn primary" disabled style={{ opacity: 0.6 }}>Create (disabled — member exists)</button>
-          )}
-
-          {memberExists ? (
-            <button className="btn" onClick={handleUpdate}>Update existing member</button>
-          ) : (
-            <button className="btn" onClick={handleReset}>Reset</button>
-          )}
+          <button className="btn primary" onClick={handleSubmit} disabled={memberExists} style={memberExists ? { opacity: 0.6, cursor: 'not-allowed' } : {}}>
+            Submit
+          </button>
+          <button className="btn" onClick={handleReset}>
+            Reset
+          </button>
         </div>
       </div>
     </div>

@@ -146,9 +146,44 @@ export default function JanasenaForm() {
   // OCR Loading state
   const [ocrLoading, setOcrLoading] = useState({ member: false, nominee: false });
 
+  // Geography lookup status
+  const [geoStatus, setGeoStatus] = useState("");
 
   const handleLocationChange = (name, value) => {
     setLocation((p) => ({ ...p, [name]: value }));
+  };
+
+  const geographyLookup = async (villageName) => {
+    if (!villageName || !villageName.trim()) return;
+    try {
+      setGeoStatus("Loading...");
+      const res = await fetch(
+        `${API_BASE_URL}/geography/lookup/${encodeURIComponent(villageName.trim())}`
+      );
+      if (res.status === 404) {
+        setGeoStatus("Village not found");
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+      console.log("🌍 Geography lookup result:", data);
+
+      // Auto-fill location fields
+      setLocation((p) => ({
+        ...p,
+        panchayathi: data.panchayati_name || data.panchayathi_name || "",
+        mandal: data.mandal_name || "",
+        constituency: data.constituency_name || "",
+        pincode: data.pincode || ""
+        // ward stays empty, user enters manually
+      }));
+
+      setGeoStatus("Address fields auto-filled");
+    } catch (err) {
+      console.error("Geography lookup failed", err);
+      setGeoStatus("Error: " + err.message);
+    }
   };
 
   const handlePersonChange = (which, data) => {
@@ -191,30 +226,48 @@ export default function JanasenaForm() {
     membershipId: d.membership_id || d.membershipId || ""
   });
 
+  // Normalize Aadhaar helper
+  const normalizeAadhaar = (s) => (s || "").replace(/\D/g, "");
+
   // Check existence endpoint and act depending on target (member/nominee)
   const checkPersonExists = async (aadhaar, target = "member") => {
-    if (!aadhaar) return null;
+    const digits = normalizeAadhaar(aadhaar || "");
+    if (!digits) return null;
+    if (digits.length !== 12) {
+      // invalid aadhaar — clear memberExists when checking member
+      if (target === "member") {
+        setMemberExists(false);
+        setMemberExistsData(null);
+      }
+      return null;
+    }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/person/exists/${aadhaar}`);
-      if (!res.ok) {
-        // Not found
+      const res = await fetch(`${API_BASE_URL}/person/exists/${encodeURIComponent(digits)}`);
+      // expect backend to return JSON like { exists: true/false, member: { ... } }
+      const j = await res.json().catch(() => null);
+      if (!j || !j.exists) {
         if (target === "member") {
           setMemberExists(false);
           setMemberExistsData(null);
         }
-        return null;
+        return j || null;
       }
 
-      const data = await res.json();
+      // exists === true
+      const member = j.member || j; // support both shapes
       if (target === "member") {
         setMemberExists(true);
-        setMemberExistsData(data);
-      } else if (target === "nominee") {
+        setMemberExistsData(member);
+      }
+
+      if (target === "nominee" && member) {
         // populate nominee fields from member returned
-        const person = mapBackendToPerson(data);
+        const person = mapBackendToPerson(member);
         setNomineeData((prev) => ({ ...prev, ...person }));
       }
-      return data;
+
+      return j;
     } catch (err) {
       console.error("checkPersonExists failed", err);
       return null;
@@ -317,6 +370,7 @@ export default function JanasenaForm() {
       member: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" },
       nominee: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" }
     });
+    setGeoStatus("");
     setFormKey(prev => prev + 1);
   };
 
@@ -417,6 +471,7 @@ export default function JanasenaForm() {
                       onMouseDown={(ev) => {
                         setVillageInput(v);
                         setShowVillageList(false);
+                        geographyLookup(v);
                       }}
                     >
                       {v}
@@ -424,6 +479,7 @@ export default function JanasenaForm() {
                   ))}
                 </ul>
               )}
+              {geoStatus && <small style={{ color: "#666", marginTop: "4px", display: "block" }}>{geoStatus}</small>}
             </div>
 
             <div>

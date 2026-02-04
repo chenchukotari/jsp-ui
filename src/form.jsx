@@ -90,6 +90,8 @@ export default function JanasenaForm() {
   const [villageInput, setVillageInput] = useState("");
   const [showVillageList, setShowVillageList] = useState(false);
   const [formKey, setFormKey] = useState(0); // Forcing re-mount on reset
+  const [memberExists, setMemberExists] = useState(false);
+  const [memberExistsData, setMemberExistsData] = useState(null);
 
   const filteredVillages = VILLAGE_NAMES.filter((v) =>
     v.toLowerCase().startsWith(villageInput.toLowerCase())
@@ -166,41 +168,56 @@ export default function JanasenaForm() {
 
   const checkNomineeAadhaar = async (aadhaar) => {
     if (!aadhaar || aadhaar.length !== 12) return;
-
     try {
-      console.log("🔍 Checking nominee Aadhaar:", aadhaar);
+      await checkPersonExists(aadhaar, "nominee");
+    } catch (err) {
+      console.error("❌ Nominee Aadhaar check failed", err);
+    }
+  };
 
-      const res = await fetch(
-        `${API_BASE_URL}/person/by-aadhaar/${aadhaar}`
-      );
+  // Helper: map backend person shape to our frontend person object
+  const mapBackendToPerson = (d) => ({
+    adhaarNumber: d.aadhaar_number || d.aadhaar || "",
+    fullName: d.full_name || d.fullName || "",
+    dob: d.dob || "",
+    gender: d.gender || "",
+    mobileNumber: d.mobile_number || d.mobile || "",
+    education: d.education || "",
+    profession: d.profession || "",
+    religion: d.religion || "",
+    reservation: d.reservation || "",
+    caste: d.caste || "",
+    membership: d.membership || "No",
+    membershipId: d.membership_id || d.membershipId || ""
+  });
 
-      // VERY IMPORTANT
+  // Check existence endpoint and act depending on target (member/nominee)
+  const checkPersonExists = async (aadhaar, target = "member") => {
+    if (!aadhaar) return null;
+    try {
+      const res = await fetch(`${API_BASE_URL}/person/exists/${aadhaar}`);
       if (!res.ok) {
-        console.log("ℹ️ Nominee Aadhaar not found in DB");
-        return;
+        // Not found
+        if (target === "member") {
+          setMemberExists(false);
+          setMemberExistsData(null);
+        }
+        return null;
       }
 
       const data = await res.json();
-      console.log("✅ Nominee exists as member:", data);
-
-      setNomineeData(prev => ({
-        ...prev,
-        adhaarNumber: data.aadhaar_number,
-        fullName: data.full_name || "",
-        dob: data.dob || "",
-        gender: data.gender || "",
-        mobileNumber: data.mobile_number || "",
-        education: data.education || "",
-        profession: data.profession || "",
-        religion: data.religion || "",
-        reservation: data.reservation || "",
-        caste: data.caste || ""
-      }));
-
-      console.log("🔁 Autofill mapping applied");
-
+      if (target === "member") {
+        setMemberExists(true);
+        setMemberExistsData(data);
+      } else if (target === "nominee") {
+        // populate nominee fields from member returned
+        const person = mapBackendToPerson(data);
+        setNomineeData((prev) => ({ ...prev, ...person }));
+      }
+      return data;
     } catch (err) {
-      console.error("❌ Nominee Aadhaar check failed", err);
+      console.error("checkPersonExists failed", err);
+      return null;
     }
   };
 
@@ -242,31 +259,9 @@ export default function JanasenaForm() {
       // Clean up aadhaar number (remove spaces)
       const aadhaarClean = ocr.aadhaar ? ocr.aadhaar.replace(/\s/g, "") : "";
 
-      // 3️⃣ NOMINEE → check DB first
-      if (owner === "nominee" && aadhaarClean) {
-        const check = await fetch(
-          `${API_BASE_URL}/person/by-aadhaar/${aadhaarClean}`
-        );
-
-        if (check.ok) {
-          const dbData = await check.json();
-          console.log("🟢 Nominee exists → DB autofill", dbData);
-
-          setNomineeData(prev => ({
-            ...prev,
-            adhaarNumber: dbData.aadhaar_number,
-            fullName: dbData.full_name || "",
-            dob: dbData.dob || "",
-            gender: dbData.gender || "",
-            mobileNumber: dbData.mobile_number || "",
-            education: dbData.education || "",
-            profession: dbData.profession || "",
-            religion: dbData.religion || "",
-            reservation: dbData.reservation || "",
-            caste: dbData.caste || ""
-          }));
-          return;
-        }
+      // Check existence for both member and nominee flows
+      if (aadhaarClean) {
+        await checkPersonExists(aadhaarClean, owner === "nominee" ? "nominee" : "member");
       }
 
       // 4️⃣ OCR fallback autofill
@@ -328,81 +323,83 @@ export default function JanasenaForm() {
   /* =====================
      SUBMIT
      ===================== */
-  const handleSubmit = async () => {
+  const buildPayload = () => {
+    const formatDate = (dateStr) => {
+      if (!dateStr) return null;
+      const parts = dateStr.split("/");
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+    };
+
+    return {
+      aadhaar_number: memberData.adhaarNumber || "",
+      full_name: memberData.fullName || "",
+      dob: formatDate(memberData.dob),
+      gender: memberData.gender || "",
+      mobile_number: memberData.mobileNumber || "",
+      pincode: location.pincode || "",
+
+      education: memberData.education || "",
+      profession: memberData.profession || "",
+      religion: memberData.religion || "",
+      reservation: memberData.reservation || "",
+      caste: memberData.caste || "",
+
+      membership: memberData.membership || "No",
+      membership_id: memberData.membershipId || "",
+
+      constituency: location.constituency || "",
+      mandal: location.mandal || "",
+      panchayathi: location.panchayathi || "",
+      village: villageInput || "",
+      ward_number: location.ward || "",
+
+      aadhaar_image_url: images.member.aadhaarUrl || null,
+      photo_url: images.member.photoUrl || null,
+
+      nominee_id: nomineeData.adhaarNumber || ""
+    };
+  };
+
+  const handleCreate = async () => {
     try {
-      console.log("🧪 IMAGE STATE BEFORE UPLOAD", images);
+      const payload = buildPayload();
+      console.log("📦 CREATE PAYLOAD", payload);
+      const res = await fetch(`${API_BASE_URL}/person/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      console.log("✅ Created, resetting form", data);
+      handleReset();
+      alert("Created successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Create failed: " + err.message);
+    }
+  };
 
-      // 🔹 Helper to format DOB (DD/MM/YYYY -> YYYY-MM-DD)
-      const formatDate = (dateStr) => {
-        if (!dateStr) return null;
-        const parts = dateStr.split("/");
-        if (parts.length === 3) {
-          return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-        return dateStr;
-      };
-
-      // 🔹 FLATTEN payload to match backend schema
-      // Use || "" to ensure we send empty string instead of undefined for "optional" fields
-      const payload = {
-        // ---- member (main person) ----
-        aadhaar_number: memberData.adhaarNumber || "",
-        full_name: memberData.fullName || "",
-        dob: formatDate(memberData.dob),
-        gender: memberData.gender || "",
-        mobile_number: memberData.mobileNumber || "",
-        pincode: location.pincode || "",
-
-        education: memberData.education || "",
-        profession: memberData.profession || "",
-        religion: memberData.religion || "",
-        reservation: memberData.reservation || "",
-        caste: memberData.caste || "",
-
-        membership: memberData.membership || "No",
-        membership_id: memberData.membershipId || "",
-
-        // ---- location ----
-        constituency: location.constituency || "",
-        mandal: location.mandal || "",
-        panchayathi: location.panchayathi || "",
-        village: villageInput || "",
-        ward_number: location.ward || "",
-        // latitude & longitude removed as requested
-
-        // ---- images (Cloudinary URLs) ----
-        aadhaar_image_url: images.member.aadhaarUrl || null,
-        photo_url: images.member.photoUrl || null,
-
-
-        // ---- nominee ----
-        nominee_id: nomineeData.adhaarNumber || ""
-      };
-
-      // 🟢 DEBUG PRINT (THIS IS WHAT YOU WANTED)
-      console.log("📦 FINAL PAYLOAD (sent to backend)");
-      console.log(JSON.stringify(payload, null, 2));
-
-      // ❗STOP HERE while debugging
-      // return;
-
+  const handleUpdate = async () => {
+    try {
+      const payload = buildPayload();
+      console.log("📦 UPDATE PAYLOAD", payload);
       const res = await fetch(`${API_BASE_URL}/person/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
       const data = await res.json();
-      console.log("✅ Data saved, resetting form...");
+      console.log("✅ Updated, resetting form", data);
       handleReset();
-      alert("Saved successfully!");
-      console.log("Backend response:", data);
-
+      alert("Updated successfully!");
     } catch (err) {
       console.error(err);
-      alert("Submit failed: " + err.message);
+      alert("Update failed: " + err.message);
     }
   };
 
@@ -416,22 +413,8 @@ export default function JanasenaForm() {
 
         {/* Location */}
         <div className="section">
-          <div className="grid-2">
-            <div>
-              <label>Constituency Name</label>
-              <input value={location.constituency} onChange={(e) => handleLocationChange("constituency", e.target.value)} />
-            </div>
-
-            <div>
-              <label>Mandal Name</label>
-              <input value={location.mandal} onChange={(e) => handleLocationChange("mandal", e.target.value)} />
-            </div>
-
-            <div>
-              <label>Panchayathi Name</label>
-              <input value={location.panchayathi} onChange={(e) => handleLocationChange("panchayathi", e.target.value)} />
-            </div>
-
+          <div className="grid-3">
+            {/* First row: Village/Town Name, Ward Number, pincode */}
             {/* Village Autocomplete */}
             <div style={{ position: "relative" }}>
               <label>Village/Town Name</label>
@@ -451,7 +434,6 @@ export default function JanasenaForm() {
                     <li
                       key={v}
                       onMouseDown={(ev) => {
-                        // use onMouseDown to avoid blur before click
                         setVillageInput(v);
                         setShowVillageList(false);
                       }}
@@ -464,13 +446,29 @@ export default function JanasenaForm() {
             </div>
 
             <div>
+              <label>Ward Number</label>
+              <input value={location.ward} onChange={(e) => handleLocationChange("ward", e.target.value)} />
+            </div>
+
+            <div>
               <label>pincode</label>
               <input value={location.pincode} onChange={(e) => handleLocationChange("pincode", e.target.value)} />
             </div>
 
+            {/* Second row: Panchayathi Name, Mandal Name, Constituency Name */}
             <div>
-              <label>Ward Number</label>
-              <input value={location.ward} onChange={(e) => handleLocationChange("ward", e.target.value)} />
+              <label>Panchayathi Name</label>
+              <input value={location.panchayathi} onChange={(e) => handleLocationChange("panchayathi", e.target.value)} />
+            </div>
+
+            <div>
+              <label>Mandal Name</label>
+              <input value={location.mandal} onChange={(e) => handleLocationChange("mandal", e.target.value)} />
+            </div>
+
+            <div>
+              <label>Constituency Name</label>
+              <input value={location.constituency} onChange={(e) => handleLocationChange("constituency", e.target.value)} />
             </div>
 
             {/* Latitude and Longitude Removed */}
@@ -495,19 +493,29 @@ export default function JanasenaForm() {
         </div>
 
         <div className="grid-2 gap">
-          <PersonCard key={`member-card-${formKey}`} title="Member Details" which="member" value={memberData} onChange={(d) => handlePersonChange("member", d)} />
-          <PersonCard key={`nominee-card-${formKey}`} title="Nominee Details" which="nominee" value={nomineeData} onChange={(d) => handlePersonChange("nominee", d)} onAadhaarBlur={checkNomineeAadhaar} />
+          <PersonCard key={`member-card-${formKey}`} title="Member Details" which="member" value={memberData} onChange={(d) => handlePersonChange("member", d)} onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")} />
+          <PersonCard key={`nominee-card-${formKey}`} title="Nominee Details" which="nominee" value={nomineeData} onChange={(d) => handlePersonChange("nominee", d)} onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "nominee")} />
         </div>
 
 
+        {memberExists && (
+          <div style={{ padding: '8px 12px', background: '#fff7cc', borderRadius: 8, marginBottom: 12, border: '1px solid #f59e0b' }}>
+            ⚠️ This person is already registered as a member. To update the existing record use "Update existing member".
+          </div>
+        )}
+
         <div className="actions">
-          <button className="btn primary" onClick={handleSubmit}>Submit</button>
-          <button
-            className="btn"
-            onClick={handleReset}
-          >
-            Reset
-          </button>
+          {!memberExists ? (
+            <button className="btn primary" onClick={handleCreate}>Create</button>
+          ) : (
+            <button className="btn primary" disabled style={{ opacity: 0.6 }}>Create (disabled — member exists)</button>
+          )}
+
+          {memberExists ? (
+            <button className="btn" onClick={handleUpdate}>Update existing member</button>
+          ) : (
+            <button className="btn" onClick={handleReset}>Reset</button>
+          )}
         </div>
       </div>
     </div>
@@ -595,7 +603,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
           value={form.adhaarNumber}
           onChange={handleChange}
           onBlur={() => {
-            if (which === "nominee" && onAadhaarBlur) {
+            if (onAadhaarBlur) {
               onAadhaarBlur(form.adhaarNumber);
             }
           }}

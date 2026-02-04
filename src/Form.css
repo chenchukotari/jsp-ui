@@ -58,6 +58,12 @@ body {
   gap: 16px;
 }
 
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
 .gap {
   margin-top: 24px;
 }

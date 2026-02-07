@@ -6,7 +6,7 @@ import { uploadToCloudinary } from "./cloudinary"; // keep your existing helper
    CONSTANT DATA
    ===================== */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://aadhaar-backend-uu1u.onrender.com";
 
 const VILLAGE_NAMES = [
   "Muchivolu",

@@ -312,7 +312,10 @@ export default function JanasenaForm() {
       const formData = new FormData();
       formData.append("file", file); // Send the raw file
 
-      const res = await fetch(`${API_BASE_URL}/ocr-parse`, {
+      const ocrUrl = `${API_BASE_URL}/ocr-parse`;
+      console.log(`🌐 Fetching OCR from: ${ocrUrl}`);
+
+      const res = await fetch(ocrUrl, {
         method: "POST",
         body: formData
       });

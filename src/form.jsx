@@ -280,6 +280,10 @@ export default function JanasenaForm() {
         setMemberExists(alreadyRegistered);
         setMemberExistsData(j.member);
         setMemberData((prev) => ({ ...prev, ...person }));
+
+        if (alreadyRegistered) {
+          alert("⚠️ This person is already registered as a member.");
+        }
       } else {
         setNomineeData((prev) => ({ ...prev, ...person }));
       }
@@ -487,6 +491,7 @@ export default function JanasenaForm() {
 
         <p className="subtitle">Please provide accurate details for both Member and Nominee</p>
 
+
         {/* Location */}
         <div className="section">
           <div className="grid-3">
@@ -571,15 +576,22 @@ export default function JanasenaForm() {
         </div>
 
         <div className="grid-2 gap">
-          <PersonCard
-            key={`member-card-${formKey}`}
-            title="Member Details"
-            which="member"
-            value={memberData}
-            onChange={(d) => handlePersonChange("member", d)}
-            onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")}
-            isSearching={isSearching.member}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {memberExists && (
+              <div style={{ padding: '10px 12px', background: '#fff7cc', borderRadius: 8, border: '1px solid #f59e0b', fontSize: '0.95rem', fontWeight: '600' }}>
+                ⚠️ This person is already registered as a member.
+              </div>
+            )}
+            <PersonCard
+              key={`member-card-${formKey}`}
+              title="Member Details"
+              which="member"
+              value={memberData}
+              onChange={(d) => handlePersonChange("member", d)}
+              onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")}
+              isSearching={isSearching.member}
+            />
+          </div>
           <PersonCard
             key={`nominee-card-${formKey}`}
             title="Nominee Details"
@@ -592,11 +604,7 @@ export default function JanasenaForm() {
         </div>
 
 
-        {memberExists && (
-          <div style={{ padding: '8px 12px', background: '#fff7cc', borderRadius: 8, marginBottom: 12, border: '1px solid #f59e0b' }}>
-            ⚠️ This person is already registered as a member.
-          </div>
-        )}
+
 
         <div className="actions">
           <button className="btn primary" onClick={handleSubmit} disabled={memberExists} style={memberExists ? { opacity: 0.6, cursor: 'not-allowed' } : {}}>

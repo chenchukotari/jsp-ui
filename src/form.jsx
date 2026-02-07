@@ -6,7 +6,7 @@ import { uploadToCloudinary } from "./cloudinary"; // keep your existing helper
    CONSTANT DATA
    ===================== */
 
-const API_BASE_URL = "https://jsp-backend-1.onrender.com";
+const API_BASE_URL = "http://localhost:8000";
 
 const VILLAGE_NAMES = [
   "Muchivolu",
@@ -109,7 +109,7 @@ export default function JanasenaForm() {
   });
 
   // Lifted person data
-  const [memberData, setMemberData] = useState({});
+  const [memberData, setMemberData] = useState({ ...INITIAL_PERSON_STATE });
 
   const [nomineeData, setNomineeData] = useState({
     adhaarNumber: "",
@@ -145,6 +145,9 @@ export default function JanasenaForm() {
 
   // OCR Loading state
   const [ocrLoading, setOcrLoading] = useState({ member: false, nominee: false });
+
+  // Aadhaar lookup searching state
+  const [isSearching, setIsSearching] = useState({ member: false, nominee: false });
 
   // Geography lookup status
   const [geoStatus, setGeoStatus] = useState("");
@@ -201,30 +204,42 @@ export default function JanasenaForm() {
     }));
   };
 
-  const checkNomineeAadhaar = async (aadhaar) => {
-    if (!aadhaar || aadhaar.length !== 12) return;
-    try {
-      await checkPersonExists(aadhaar, "nominee");
-    } catch (err) {
-      console.error("❌ Nominee Aadhaar check failed", err);
-    }
-  };
 
   // Helper: map backend person shape to our frontend person object
-  const mapBackendToPerson = (d) => ({
-    adhaarNumber: d.aadhaar_number || d.aadhaar || "",
-    fullName: d.full_name || d.fullName || "",
-    dob: d.dob || "",
-    gender: d.gender || "",
-    mobileNumber: d.mobile_number || d.mobile || "",
-    education: d.education || "",
-    profession: d.profession || "",
-    religion: d.religion || "",
-    reservation: d.reservation || "",
-    caste: d.caste || "",
-    membership: d.membership || "No",
-    membershipId: d.membership_id || d.membershipId || ""
-  });
+  // Helper: map backend person shape to our frontend person object
+  const mapBackendToPerson = (d) => {
+    if (!d) return { ...INITIAL_PERSON_STATE };
+    console.group(`🔍 Mapping Data`);
+    console.log("Raw Backend Data:", d);
+
+    // Reverse formatDate: YYYY-MM-DD -> DD/MM/YYYY
+    let displayDob = d.dob || "";
+    if (displayDob && displayDob.includes("-")) {
+      const parts = displayDob.split("-");
+      // If it looks like YYYY-MM-DD (4 digits first)
+      if (parts.length === 3 && parts[0].length === 4) {
+        displayDob = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    }
+
+    const mapped = {
+      adhaarNumber: d.aadhaar_number || d.aadhaar || d.adhaarNumber || "",
+      fullName: d.full_name || d.fullName || d.fullname || d.name || "",
+      dob: displayDob,
+      gender: d.gender ? (d.gender.charAt(0).toUpperCase() + d.gender.slice(1).toLowerCase()) : "",
+      mobileNumber: d.mobile_number || d.mobile || d.mobileNumber || "",
+      education: d.education || "",
+      profession: d.profession || "",
+      religion: d.religion || "",
+      reservation: d.reservation || "",
+      caste: d.caste || "",
+      membership: d.membership || d.is_member || "No",
+      membershipId: d.membership_id || d.membershipId || ""
+    };
+    console.log("Mapped Result:", mapped);
+    console.groupEnd();
+    return mapped;
+  };
 
   // Normalize Aadhaar helper
   const normalizeAadhaar = (s) => (s || "").replace(/\D/g, "");
@@ -234,7 +249,6 @@ export default function JanasenaForm() {
     const digits = normalizeAadhaar(aadhaar || "");
     if (!digits) return null;
     if (digits.length !== 12) {
-      // invalid aadhaar — clear memberExists when checking member
       if (target === "member") {
         setMemberExists(false);
         setMemberExistsData(null);
@@ -243,10 +257,14 @@ export default function JanasenaForm() {
     }
 
     try {
+      setIsSearching(prev => ({ ...prev, [target]: true }));
       const res = await fetch(`${API_BASE_URL}/person/exists/${encodeURIComponent(digits)}`);
-      // expect backend to return JSON like { exists: true/false, member: { ... } }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const j = await res.json().catch(() => null);
-      if (!j || !j.exists) {
+      console.log(`🔍 Existence check (${target}):`, j);
+
+      if (!j || !j.exists || !j.member) {
         if (target === "member") {
           setMemberExists(false);
           setMemberExistsData(null);
@@ -254,23 +272,24 @@ export default function JanasenaForm() {
         return j || null;
       }
 
-      // exists === true
-      const member = j.member || j; // support both shapes
-      if (target === "member") {
-        setMemberExists(true);
-        setMemberExistsData(member);
-      }
+      const person = mapBackendToPerson(j.member);
+      console.log(`📋 Mapped data (${target}):`, person);
 
-      if (target === "nominee" && member) {
-        // populate nominee fields from member returned
-        const person = mapBackendToPerson(member);
+      if (target === "member") {
+        const alreadyRegistered = !!j.member.is_registered;
+        setMemberExists(alreadyRegistered);
+        setMemberExistsData(j.member);
+        setMemberData((prev) => ({ ...prev, ...person }));
+      } else {
         setNomineeData((prev) => ({ ...prev, ...person }));
       }
 
       return j;
     } catch (err) {
-      console.error("checkPersonExists failed", err);
+      console.error(`❌ checkPersonExists failed for ${target}:`, err);
       return null;
+    } finally {
+      setIsSearching(prev => ({ ...prev, [target]: false }));
     }
   };
 
@@ -308,40 +327,33 @@ export default function JanasenaForm() {
       // Map backend response 'extracted' to our needs
       // Backend returns: { extracted: { name, dob, address, aadhaar, gender } }
       const ocr = ocrResponse.extracted || {};
-
-      // Clean up aadhaar number (remove spaces)
       const aadhaarClean = ocr.aadhaar ? ocr.aadhaar.replace(/\s/g, "") : "";
 
-      // Check existence for both member and nominee flows
       if (aadhaarClean) {
         await checkPersonExists(aadhaarClean, owner === "nominee" ? "nominee" : "member");
       }
 
-      // 4️⃣ OCR fallback autofill
-      const autofill = {
-        adhaarNumber: aadhaarClean,
-        fullName: ocr.name,
-        gender: ocr.gender,
-        dob: ocr.dob,
-        // mobileNumber: ocr.mobile_number, // Backend extraction doesn't seem to return mobile number reliably currently
-        // pincode: ocr.pincode // Backend extraction currently returns full address string, logic might need adjustment if pincode is needed
-      };
+      // 4️⃣ OCR fallback autofill: ONLY fill if the field is empty or existence check didn't fill it
+      const currentData = owner === "member" ? memberData : nomineeData;
 
-      if (owner === "member") {
-        setMemberData(p => ({ ...p, ...autofill }));
-        // Also update global location pincode if we can extract it from address
-        // Simple primitive check for pincode in address if available
-        if (ocr.address) {
-          const pinMatch = ocr.address.match(/\b\d{6}\b/);
-          if (pinMatch) {
-            setLocation(p => ({ ...p, pincode: pinMatch[0] }));
+      const autofill = {};
+      if (aadhaarClean && !currentData.adhaarNumber) autofill.adhaarNumber = aadhaarClean;
+      if (ocr.name && !currentData.fullName) autofill.fullName = ocr.name;
+      if (ocr.gender && !currentData.gender) autofill.gender = ocr.gender;
+      if (ocr.dob && !currentData.dob) autofill.dob = ocr.dob;
+
+      if (Object.keys(autofill).length > 0) {
+        console.log(`✨ Applying OCR autofill (${owner}):`, autofill);
+        if (owner === "member") {
+          setMemberData(p => ({ ...p, ...autofill }));
+          if (ocr.address) {
+            const pinMatch = ocr.address.match(/\b\d{6}\b/);
+            if (pinMatch) setLocation(p => ({ ...p, pincode: pinMatch[0] }));
           }
+        } else {
+          setNomineeData(p => ({ ...p, ...autofill }));
         }
-      } else {
-        setNomineeData(p => ({ ...p, ...autofill }));
       }
-
-      console.log("🔁 OCR autofill applied");
 
 
     } catch (err) {
@@ -364,8 +376,8 @@ export default function JanasenaForm() {
       latitude: "",
       longitude: ""
     });
-    setMemberData({});
-    setNomineeData({});
+    setMemberData({ ...INITIAL_PERSON_STATE });
+    setNomineeData({ ...INITIAL_PERSON_STATE });
     setImages({
       member: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" },
       nominee: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" }
@@ -416,8 +428,30 @@ export default function JanasenaForm() {
         aadhaar_image_url: images.member.aadhaarUrl || null,
         photo_url: images.member.photoUrl || null,
 
-        nominee_id: nomineeData.adhaarNumber || ""
+        // Nominee Details
+        nominee_id: nomineeData.adhaarNumber || "",
+        nominee_full_name: nomineeData.fullName || "",
+        nominee_dob: formatDate(nomineeData.dob),
+        nominee_gender: nomineeData.gender || "",
+        nominee_mobile_number: nomineeData.mobileNumber || "",
+        nominee_education: nomineeData.education || "",
+        nominee_profession: nomineeData.profession || "",
+        nominee_religion: nomineeData.religion || "",
+        nominee_reservation: nomineeData.reservation || "",
+        nominee_caste: nomineeData.caste || "",
+        nominee_membership: nomineeData.membership || "No",
+        nominee_membership_id: nomineeData.membershipId || ""
       };
+
+      // Validation
+      if (!payload.aadhaar_number) {
+        alert("Member Aadhaar number is required.");
+        return;
+      }
+      if (!payload.nominee_id) {
+        alert("Nominee Aadhaar number is required.");
+        return;
+      }
 
       console.log("📦 FINAL PAYLOAD", payload);
 
@@ -530,8 +564,24 @@ export default function JanasenaForm() {
         </div>
 
         <div className="grid-2 gap">
-          <PersonCard key={`member-card-${formKey}`} title="Member Details" which="member" value={memberData} onChange={(d) => handlePersonChange("member", d)} onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")} />
-          <PersonCard key={`nominee-card-${formKey}`} title="Nominee Details" which="nominee" value={nomineeData} onChange={(d) => handlePersonChange("nominee", d)} onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "nominee")} />
+          <PersonCard
+            key={`member-card-${formKey}`}
+            title="Member Details"
+            which="member"
+            value={memberData}
+            onChange={(d) => handlePersonChange("member", d)}
+            onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")}
+            isSearching={isSearching.member}
+          />
+          <PersonCard
+            key={`nominee-card-${formKey}`}
+            title="Nominee Details"
+            which="nominee"
+            value={nomineeData}
+            onChange={(d) => handlePersonChange("nominee", d)}
+            onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "nominee")}
+            isSearching={isSearching.nominee}
+          />
         </div>
 
 
@@ -573,7 +623,7 @@ const INITIAL_PERSON_STATE = {
   membershipId: ""
 };
 
-function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
+function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearching }) {
   const [form, setForm] = useState({
     ...INITIAL_PERSON_STATE,
     ...value
@@ -581,14 +631,16 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
 
   useEffect(() => {
     // keep local form in sync when parent updates
-    // MERGE with INITIAL_PERSON_STATE to ensure reset works when value is {}
-    setForm((p) => ({ ...INITIAL_PERSON_STATE, ...value }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+    console.log(`🔄 PersonCard (${which}) received new value:`, value);
+    setForm((p) => {
+      const next = { ...INITIAL_PERSON_STATE, ...value };
+      console.log(`✅ PersonCard (${which}) updating local form to:`, next);
+      return next;
+    });
+  }, [value, which]);
 
   const handleChange = (e) => {
     const { name, value: v } = e.target;
-    // ensure we keep the structure
     const updated = { ...form, [name]: v };
     setForm(updated);
     onChange && onChange(updated);
@@ -608,28 +660,46 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
     onChange && onChange(updated);
   };
 
-  /* Removed unused casteOptions variable assignment */
+  // Check if this card holds an existing person's data
+  const hasExistingData = value && value.fullName && value.adhaarNumber;
 
   return (
     <div className="card">
-      <div className="card-header">{title}</div>
+      <div className="card-header">
+        {title}
+        {hasExistingData && <span className="scanning-badge" style={{ background: '#e0f2fe', color: '#0369a1', marginLeft: 'auto' }}>Existing Profile Linked</span>}
+      </div>
 
       <div className="card-body">
         <label>Full Name</label>
-        <input name="fullName" value={form.fullName} onChange={handleChange} placeholder="Enter full name" />
+        <input
+          name="fullName"
+          value={form.fullName}
+          onChange={handleChange}
+          placeholder="Enter full name"
+          autoComplete="off"
+        />
 
-        <label>DOB & Gender</label>
-        <div className="row">
-          <input name="dob" value={form.dob} onChange={handleChange} placeholder="DD/MM/YYYY" />
-          <select name="gender" value={form.gender} onChange={handleChange}>
-            <option value="">Gender</option>
-            {GENDER_OPTIONS.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
+        <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
+          <div>
+            <label>DOB</label>
+            <input name="dob" value={form.dob} onChange={handleChange} placeholder="DD/MM/YYYY" />
+          </div>
+          <div>
+            <label>Gender</label>
+            <select name="gender" value={form.gender} onChange={handleChange}>
+              <option value="">Select Gender</option>
+              {GENDER_OPTIONS.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <label>Adhaar Number</label>
+        <label style={{ marginTop: 18 }}>
+          Adhaar Number {which === "nominee" && <span style={{ color: "red" }}>*</span>}
+          {isSearching && <span className="scanning-badge" style={{ marginLeft: 8 }}>Verifying...</span>}
+        </label>
         <input
           name="adhaarNumber"
           value={form.adhaarNumber}
@@ -639,61 +709,72 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur }) {
               onAadhaarBlur(form.adhaarNumber);
             }
           }}
-          placeholder="Enter Adhaar number"
+          placeholder="12 digit Aadhaar"
+          maxLength={14}
         />
 
-        <label>Mobile Number</label>
-        <input name="mobileNumber" value={form.mobileNumber} onChange={handleChange} placeholder="Enter mobile number" />
+        <label style={{ marginTop: 18 }}>Mobile Number</label>
+        <input name="mobileNumber" value={form.mobileNumber} onChange={handleChange} placeholder="+91 XXXX XXXX XX" />
 
-        <label>Qualification</label>
-        <select name="education" value={form.education} onChange={handleChange}>
-          <option value="">Select</option>
-          {EDUCATION_OPTIONS.map((e) => (
-            <option key={e} value={e}>{e}</option>
-          ))}
-        </select>
+        <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
+          <div>
+            <label>Qualification</label>
+            <select name="education" value={form.education} onChange={handleChange}>
+              <option value="">Select</option>
+              {EDUCATION_OPTIONS.map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Profession</label>
+            <select name="profession" value={form.profession} onChange={handleChange}>
+              <option value="">Select</option>
+              {PROFESSION_OPTIONS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-        <label>Profession</label>
-        <select name="profession" value={form.profession} onChange={handleChange}>
-          <option value="">Select</option>
-          {PROFESSION_OPTIONS.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
+        <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
+          <div>
+            <label>Religion</label>
+            <select name="religion" value={form.religion} onChange={handleChange}>
+              <option value="">Select</option>
+              {RELIGION_OPTIONS.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Reservation</label>
+            <select name="reservation" value={form.reservation} onChange={handleReservationChange}>
+              <option value="">Select</option>
+              {RESERVATION_OPTIONS.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-        <label>Religion</label>
-        <select name="religion" value={form.religion} onChange={handleChange}>
-          <option value="">Select</option>
-          {RELIGION_OPTIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-
-        <label>Reservation</label>
-        <select name="reservation" value={form.reservation} onChange={handleReservationChange}>
-          <option value="">Select</option>
-          {RESERVATION_OPTIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-
-        <label>Caste</label>
+        <label style={{ marginTop: 18 }}>Caste</label>
         <input name="caste" value={form.caste} onChange={handleChange} placeholder="Enter Caste" />
 
-
-        <label>Janasena Membership & ID</label>
+        <label style={{ marginTop: 18 }}>Janasena Membership</label>
         <div className="row">
-          <select name="membership" value={form.membership} onChange={handleMembershipChange}>
+          <select name="membership" value={form.membership} onChange={handleMembershipChange} style={{ flex: 1 }}>
             <option value="No">No</option>
             <option value="Yes">Yes</option>
           </select>
 
           <input
             name="membershipId"
-            placeholder="XXXX XXXX XXXX XXXX"
+            placeholder="Membership ID"
             value={form.membershipId}
             onChange={handleChange}
             disabled={form.membership !== "Yes"}
+            style={{ flex: 2 }}
           />
         </div>
       </div>
@@ -838,139 +919,68 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
   /* ================= UI ================= */
 
   return (
-    <div className="card p-4 shadow rounded-lg max-w-sm mx-auto">
+    <div className="card">
+      <div className="card-header">Upload Documents ({owner})</div>
       <div className="card-body">
-        {/* ================= AADHAAR ================= */}
-        <div className="mb-4">
-          <div className="font-semibold mb-2">
-            Aadhaar Document ({owner})
-            {isScanning && <span style={{ marginLeft: 10, color: '#f59e0b' }}>Processing... ⏳</span>}
-          </div>
-
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={() => startCamera("aadhaar")}
-              className="btn outline flex-1"
-              disabled={isScanning}
-            >
-              Take Photo
-            </button>
-
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              id={`${owner}-aadhaar-file`}
-              disabled={isScanning}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                const preview = URL.createObjectURL(file);
-                setAadhaarFile(file);
-                setAadhaarPreview(preview);
-
-                // 🔥 Aadhaar always goes to OCR
-                onAadhaarOCR(file, owner);
-              }}
-            />
-
-            <label
-              htmlFor={`${owner}-aadhaar-file`}
-              className="btn outline flex-1 cursor-pointer text-center"
-              style={isScanning ? { pointerEvents: "none", opacity: 0.5 } : {}}
-            >
-              Choose File
-            </label>
-          </div>
-
-          {aadhaarPreview && (
-            <div
-              className="border rounded p-1 flex justify-center items-center"
-              style={{ height: 180 }}
-            >
-              <img
-                src={aadhaarPreview}
-                alt="Aadhaar Preview"
-                style={{
-                  maxHeight: "100%",
-                  maxWidth: "100%",
-                  objectFit: "contain",
+        <div className="grid-2" style={{ padding: 0 }}>
+          {/* Aadhaar Section */}
+          <div className="upload-card">
+            <h3>Aadhaar Document</h3>
+            <div className="image-preview">
+              {aadhaarPreview ? (
+                <img src={aadhaarPreview} alt="Aadhaar" />
+              ) : (
+                <span style={{ color: '#94a3b8', fontSize: '13px' }}>No image uploaded</span>
+              )}
+            </div>
+            {isScanning && <div className="scanning-badge">Scanning Document...</div>}
+            <div className="btn-row">
+              <button className="btn-mini" onClick={() => startCamera("aadhaar")} disabled={isScanning}>Camera</button>
+              <label htmlFor={`${owner}-aadhaar-file`} className="btn-mini" style={{ opacity: isScanning ? 0.5 : 1 }}>File</label>
+              <input
+                id={`${owner}-aadhaar-file`}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const preview = URL.createObjectURL(file);
+                    setAadhaarPreview(preview);
+                    onAadhaarOCR(file, owner);
+                  }
                 }}
               />
             </div>
-          )}
-        </div>
-
-        {/* ================= PHOTO ================= */}
-        <div className="mb-4">
-          <div className="font-semibold mb-2">Photo ({owner})</div>
-
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={() => startCamera("photo")}
-              className="btn outline flex-1"
-            >
-              Take Photo
-            </button>
-
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              id={`${owner}-photo-file`}
-              onChange={handlePhotoFileChange}
-            />
-
-            <label
-              htmlFor={`${owner}-photo-file`}
-              className="btn outline flex-1 cursor-pointer text-center"
-            >
-              Choose File
-            </label>
           </div>
 
-          {photoPreview && (
-            <div
-              className="border rounded p-1 flex justify-center items-center"
-              style={{ height: 180 }}
-            >
-              <img
-                src={photoPreview}
-                alt="Photo Preview"
-                style={{
-                  maxHeight: "100%",
-                  maxWidth: "100%",
-                  objectFit: "contain",
-                }}
-              />
+          {/* Photo Section */}
+          <div className="upload-card">
+            <h3>Passport Photo</h3>
+            <div className="image-preview">
+              {photoPreview ? (
+                <img src={photoPreview} alt="Photo" />
+              ) : (
+                <span style={{ color: '#94a3b8', fontSize: '13px' }}>No image uploaded</span>
+              )}
             </div>
-          )}
+            <div className="btn-row">
+              <button className="btn-mini" onClick={() => startCamera("photo")}>Camera</button>
+              <label htmlFor={`${owner}-photo-file`} className="btn-mini">File</label>
+              <input id={`${owner}-photo-file`} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoFileChange} />
+            </div>
+          </div>
         </div>
 
-        {/* ================= CAMERA PREVIEW ================= */}
         {capturingFor && (
-          <div className="mt-2 border rounded p-1">
-            <video
-              ref={videoRef}
-              style={{ width: "100%", borderRadius: 4 }}
-            />
-            <button
-              onClick={capturePhoto}
-              className="btn outline w-full mt-2"
-            >
-              Capture
-            </button>
-            <button
-              onClick={switchCamera}
-              className="btn outline w-full mt-2"
-              style={{ borderColor: "#10b981", color: "#10b981" }}
-            >
-              Switch Camera ({facingMode === "user" ? "Front" : "Back"})
-            </button>
+          <div className="camera-box">
+            <video ref={videoRef} />
+            <div className="btn-row" style={{ padding: '12px' }}>
+              <button className="btn primary" style={{ flex: 2 }} onClick={capturePhoto}>Capture Photo</button>
+              <button className="btn-secondary btn" style={{ flex: 1 }} onClick={switchCamera}>Switch</button>
+            </div>
           </div>
         )}
-
         <canvas ref={canvasRef} style={{ display: "none" }} />
       </div>
     </div>

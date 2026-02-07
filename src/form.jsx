@@ -447,7 +447,9 @@ export default function JanasenaForm() {
         nominee_reservation: nomineeData.reservation || "",
         nominee_caste: nomineeData.caste || "",
         nominee_membership: nomineeData.membership || "No",
-        nominee_membership_id: nomineeData.membershipId || ""
+        nominee_membership_id: nomineeData.membershipId || "",
+        nominee_aadhaar_image_url: images.nominee.aadhaarUrl || null,
+        nominee_photo_url: images.nominee.photoUrl || null
       };
 
       // Validation

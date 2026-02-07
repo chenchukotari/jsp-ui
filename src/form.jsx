@@ -464,7 +464,11 @@ export default function JanasenaForm() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        const detail = errorData?.detail || `HTTP ${res.status}`;
+        throw new Error(detail);
+      }
       const data = await res.json();
       console.log("✅ Submitted, resetting form", data);
       handleReset();

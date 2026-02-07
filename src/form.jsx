@@ -390,6 +390,8 @@ export default function JanasenaForm() {
       nominee: { aadhaarUrl: "", photoUrl: "", aadhaarPreview: "", photoPreview: "" }
     });
     setGeoStatus("");
+    setMemberExists(false);
+    setMemberExistsData(null);
     setFormKey(prev => prev + 1);
   };
 

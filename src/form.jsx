@@ -92,6 +92,7 @@ export default function JanasenaForm() {
   const [formKey, setFormKey] = useState(0); // Forcing re-mount on reset
   const [memberExists, setMemberExists] = useState(false);
   const [memberExistsData, setMemberExistsData] = useState(null);
+  const [registerNomineeAsMember, setRegisterNomineeAsMember] = useState(false);
 
   const filteredVillages = VILLAGE_NAMES.filter((v) =>
     v.toLowerCase().startsWith(villageInput.toLowerCase())
@@ -392,6 +393,7 @@ export default function JanasenaForm() {
     setGeoStatus("");
     setMemberExists(false);
     setMemberExistsData(null);
+    setRegisterNomineeAsMember(false);
     setFormKey(prev => prev + 1);
   };
 
@@ -451,7 +453,8 @@ export default function JanasenaForm() {
         nominee_membership: nomineeData.membership || "No",
         nominee_membership_id: nomineeData.membershipId || "",
         nominee_aadhaar_image_url: images.nominee.aadhaarUrl || null,
-        nominee_photo_url: images.nominee.photoUrl || null
+        nominee_photo_url: images.nominee.photoUrl || null,
+        register_nominee_as_member: registerNomineeAsMember
       };
 
       // Validation
@@ -606,10 +609,18 @@ export default function JanasenaForm() {
             isSearching={isSearching.nominee}
           />
         </div>
-
-
-
-
+        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', padding: '12px 16px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+          <input
+            id="registerNominee"
+            type="checkbox"
+            checked={registerNomineeAsMember}
+            onChange={(e) => setRegisterNomineeAsMember(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: 'pointer' }}
+          />
+          <label htmlFor="registerNominee" style={{ cursor: 'pointer', fontWeight: '500', fontSize: '0.95rem', color: '#334155' }}>
+            Register nominee as a member as well (Member will be set as nominee for this person)
+          </label>
+        </div>
         <div className="actions">
           <button className="btn primary" onClick={handleSubmit} disabled={memberExists} style={memberExists ? { opacity: 0.6, cursor: 'not-allowed' } : {}}>
             Submit

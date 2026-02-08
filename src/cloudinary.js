@@ -7,7 +7,7 @@ export async function uploadToCloudinary(file) {
 
 
   const res = await fetch(
-    "https://api.cloudinary.com/v1_1/ddtewwyny/image/upload",
+    "https://api.cloudinary.com/v1_1/ddtewwyny/auto/upload",
     {
       method: "POST",
       body: formData

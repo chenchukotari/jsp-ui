@@ -307,13 +307,22 @@ export default function JanasenaForm() {
       const imageUrl = await uploadToCloudinary(file);
       console.log("✅ Aadhaar uploaded:", imageUrl);
 
-      // 🔥 FIX: Update state with the uploaded URL
+      // Store the URL regardless of OCR success
       setImages((p) => ({
         ...p,
         [owner]: { ...p[owner], aadhaarUrl: imageUrl }
       }));
 
-      // 2️⃣ Call OCR API
+      // 2️⃣ Call OCR API ONLY if it's an image or PDF
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        console.log("📄 Non-OCR file detected, skipping OCR.");
+        if (file.name.endsWith(".doc") || file.name.endsWith(".docx")) {
+          alert("📋 OCR scanning is not supported for Word documents. Please enter the details manually.");
+        }
+        setOcrLoading(prev => ({ ...prev, [owner]: false }));
+        return;
+      }
+
       const formData = new FormData();
       formData.append("file", file); // Send the raw file
 
@@ -609,16 +618,40 @@ export default function JanasenaForm() {
             isSearching={isSearching.nominee}
           />
         </div>
-        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', padding: '12px 16px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          background: registerNomineeAsMember ? '#f0fdf4' : '#f8fafc',
+          padding: '12px 18px',
+          borderRadius: 10,
+          border: '1px solid',
+          borderColor: registerNomineeAsMember ? '#bbf7d0' : '#f1f5f9',
+          transition: 'all 0.2s ease',
+          margin: '24px auto',
+          maxWidth: 'fit-content'
+        }}>
           <input
             id="registerNominee"
             type="checkbox"
             checked={registerNomineeAsMember}
             onChange={(e) => setRegisterNomineeAsMember(e.target.checked)}
-            style={{ width: 18, height: 18, cursor: 'pointer' }}
+            style={{
+              width: 18,
+              height: 18,
+              cursor: 'pointer',
+              accentColor: '#22c55e'
+            }}
           />
-          <label htmlFor="registerNominee" style={{ cursor: 'pointer', fontWeight: '500', fontSize: '0.95rem', color: '#334155' }}>
-            Register nominee as a member as well (Member will be set as nominee for this person)
+          <label htmlFor="registerNominee" style={{ cursor: 'pointer', flex: 1 }}>
+            <div style={{ fontWeight: '600', fontSize: '0.88rem', color: registerNomineeAsMember ? '#166534' : '#334155', lineHeight: '1.2' }}>
+              Register nominee as a member as well
+            </div>
+            <div style={{ fontSize: '0.75rem', color: registerNomineeAsMember ? '#15803d' : '#94a3b8' }}>
+              Member will be the nominee for this person.
+            </div>
           </label>
         </div>
         <div className="actions">
@@ -958,9 +991,16 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
             <h3>Aadhaar Document</h3>
             <div className="image-preview">
               {aadhaarPreview ? (
-                <img src={aadhaarPreview} alt="Aadhaar" />
+                aadhaarFile && !aadhaarFile.type.startsWith("image/") ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
+                    <span style={{ fontSize: '24px' }}>📄</span>
+                    <a href={aadhaarPreview} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: '#2563eb', textDecoration: 'underline' }}>View Document</a>
+                  </div>
+                ) : (
+                  <img src={aadhaarPreview} alt="Aadhaar" />
+                )
               ) : (
-                <span style={{ color: '#94a3b8', fontSize: '13px' }}>No image uploaded</span>
+                <span style={{ color: '#94a3b8', fontSize: '13px' }}>No document uploaded</span>
               )}
             </div>
             {isScanning && <div className="scanning-badge">Scanning Document...</div>}
@@ -970,7 +1010,7 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
               <input
                 id={`${owner}-aadhaar-file`}
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -989,15 +1029,22 @@ function UploadCard({ owner = "member", onUpload, onAadhaarOCR, isScanning }) {
             <h3>Passport Photo</h3>
             <div className="image-preview">
               {photoPreview ? (
-                <img src={photoPreview} alt="Photo" />
+                photoFile && !photoFile.type.startsWith("image/") ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
+                    <span style={{ fontSize: '24px' }}>📄</span>
+                    <a href={photoPreview} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: '#2563eb', textDecoration: 'underline' }}>View Document</a>
+                  </div>
+                ) : (
+                  <img src={photoPreview} alt="Photo" />
+                )
               ) : (
-                <span style={{ color: '#94a3b8', fontSize: '13px' }}>No image uploaded</span>
+                <span style={{ color: '#94a3b8', fontSize: '13px' }}>No document uploaded</span>
               )}
             </div>
             <div className="btn-row">
               <button className="btn-mini" onClick={() => startCamera("photo")}>Camera</button>
               <label htmlFor={`${owner}-photo-file`} className="btn-mini">File</label>
-              <input id={`${owner}-photo-file`} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoFileChange} />
+              <input id={`${owner}-photo-file`} type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style={{ display: 'none' }} onChange={handlePhotoFileChange} />
             </div>
           </div>
         </div>

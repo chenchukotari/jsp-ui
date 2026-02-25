@@ -488,18 +488,43 @@ export default function JanasenaForm() {
         alert("Member Aadhaar number is required.");
         return;
       }
+      if (!payload.aadhaar_image_url) {
+        alert("Member Aadhaar image upload is mandatory.");
+        return;
+      }
+      if (!payload.photo_url) {
+        alert("Member photo upload is mandatory.");
+        return;
+      }
+
       if (!payload.nominee_id) {
         alert("Nominee Aadhaar number is required.");
         return;
       }
+      if (!payload.nominee_aadhaar_image_url) {
+        alert("Nominee Aadhaar image upload is mandatory.");
+        return;
+      }
+      if (!payload.nominee_photo_url) {
+        alert("Nominee photo upload is mandatory.");
+        return;
+      }
 
       // Age Validation
+      if (!memberData.dob) {
+        alert("Member Date of Birth is required.");
+        return;
+      }
       const memberAge = calculateAge(memberData.dob);
       if (memberAge < 18 || memberAge > 75) {
         alert(`Member must be between 18 and 75 years old. Current age: ${memberAge}`);
         return;
       }
 
+      if (!nomineeData.dob) {
+        alert("Nominee Date of Birth is required.");
+        return;
+      }
       const nomineeAge = calculateAge(nomineeData.dob);
       if (nomineeAge < 18 || nomineeAge > 75) {
         alert(`Nominee must be between 18 and 75 years old. Current age: ${nomineeAge}`);

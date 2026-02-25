@@ -409,6 +409,23 @@ export default function JanasenaForm() {
   /* =====================
      SUBMIT
      ===================== */
+  const calculateAge = (dobStr) => {
+    if (!dobStr) return 0;
+    const parts = dobStr.split("/");
+    if (parts.length !== 3) return 0;
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const dob = new Date(year, month, day);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   const handleSubmit = async () => {
     try {
       console.log("🧪 IMAGE STATE BEFORE UPLOAD", images);
@@ -473,6 +490,19 @@ export default function JanasenaForm() {
       }
       if (!payload.nominee_id) {
         alert("Nominee Aadhaar number is required.");
+        return;
+      }
+
+      // Age Validation
+      const memberAge = calculateAge(memberData.dob);
+      if (memberAge < 18 || memberAge > 75) {
+        alert(`Member must be between 18 and 75 years old. Current age: ${memberAge}`);
+        return;
+      }
+
+      const nomineeAge = calculateAge(nomineeData.dob);
+      if (nomineeAge < 18 || nomineeAge > 75) {
+        alert(`Nominee must be between 18 and 75 years old. Current age: ${nomineeAge}`);
         return;
       }
 

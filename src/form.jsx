@@ -484,8 +484,37 @@ export default function JanasenaForm() {
       };
 
       // Validation
+      if (!villageInput) {
+        alert("Village/Town Name is required.");
+        return;
+      }
+      if (!location.ward) {
+        alert("Ward Number is required.");
+        return;
+      }
+      if (!location.pincode) {
+        alert("Pincode is required.");
+        return;
+      }
+      if (!location.panchayathi) {
+        alert("Panchayathi Name is required.");
+        return;
+      }
+      if (!location.mandal) {
+        alert("Mandal Name is required.");
+        return;
+      }
+      if (!location.constituency) {
+        alert("Constituency Name is required.");
+        return;
+      }
+
       if (!payload.aadhaar_number) {
         alert("Member Aadhaar number is required.");
+        return;
+      }
+      if (!memberData.mobileNumber) {
+        alert("Member Mobile Number is required.");
         return;
       }
       if (!payload.aadhaar_image_url) {
@@ -499,6 +528,10 @@ export default function JanasenaForm() {
 
       if (!payload.nominee_id) {
         alert("Nominee Aadhaar number is required.");
+        return;
+      }
+      if (!nomineeData.mobileNumber) {
+        alert("Nominee Mobile Number is required.");
         return;
       }
       if (!payload.nominee_aadhaar_image_url) {

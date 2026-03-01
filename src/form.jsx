@@ -169,6 +169,9 @@ export default function JanasenaForm() {
   const isNomineeAgeInvalidForMember = nomineeAge !== null && (nomineeAge < 18 || nomineeAge > 70);
   const isMemberAgeInvalid = memberAge !== null && (memberAge < 18 || memberAge > 70);
 
+  const isMemberMobileInvalid = !!(memberData.mobileNumber && memberData.mobileNumber.length !== 10);
+  const isNomineeMobileInvalid = !!(nomineeData.mobileNumber && nomineeData.mobileNumber.length !== 10);
+
   useEffect(() => {
     if (isNomineeAgeInvalidForMember && registerNomineeAsMember) {
       setRegisterNomineeAsMember(false);
@@ -712,6 +715,7 @@ export default function JanasenaForm() {
               onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")}
               isSearching={isSearching.member}
               isAgeInvalid={isMemberAgeInvalid}
+              isMobileInvalid={isMemberMobileInvalid}
             />
           </div>
           <PersonCard
@@ -723,6 +727,7 @@ export default function JanasenaForm() {
             onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "nominee")}
             isSearching={isSearching.nominee}
             isAgeInvalid={isNomineeAgeInvalidForMember}
+            isMobileInvalid={isNomineeMobileInvalid}
           />
         </div>
 
@@ -766,8 +771,8 @@ export default function JanasenaForm() {
           <button
             className="btn primary"
             onClick={handleSubmit}
-            disabled={memberExists || isMemberAgeInvalid}
-            style={(memberExists || isMemberAgeInvalid) ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+            disabled={memberExists || isMemberAgeInvalid || isMemberMobileInvalid || isNomineeMobileInvalid}
+            style={(memberExists || isMemberAgeInvalid || isMemberMobileInvalid || isNomineeMobileInvalid) ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
           >
             Submit
           </button>
@@ -799,7 +804,7 @@ const INITIAL_PERSON_STATE = {
   membershipId: ""
 };
 
-function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearching, isAgeInvalid }) {
+function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearching, isAgeInvalid, isMobileInvalid }) {
   const [form, setForm] = useState({
     ...INITIAL_PERSON_STATE,
     ...value
@@ -817,7 +822,18 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
 
   const handleChange = (e) => {
     const { name, value: v } = e.target;
-    const updated = { ...form, [name]: v };
+    let finalValue = v;
+
+    if (name === "mobileNumber") {
+      // Clean mobile number: remove non-digits and handle +91
+      let cleaned = v.replace(/\D/g, "");
+      if (cleaned.startsWith("91") && cleaned.length > 10) {
+        cleaned = cleaned.substring(2);
+      }
+      finalValue = cleaned.substring(0, 10);
+    }
+
+    const updated = { ...form, [name]: finalValue };
     setForm(updated);
     onChange && onChange(updated);
   };
@@ -895,7 +911,12 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
         />
 
         <label style={{ marginTop: 18 }}>Mobile Number</label>
-        <input name="mobileNumber" value={form.mobileNumber} onChange={handleChange} placeholder="+91 XXXX XXXX XX" />
+        <input name="mobileNumber" value={form.mobileNumber} onChange={handleChange} placeholder="10 digit mobile number" />
+        {isMobileInvalid && (
+          <div style={{ color: '#e11b22', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>
+            Mobile number must be exactly 10 digits.
+          </div>
+        )}
 
         <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
           <div>

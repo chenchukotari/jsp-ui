@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./Form.css";
 import { uploadToCloudinary } from "./cloudinary"; // keep your existing helper
+import { GEOGRAPHY_DATA } from "./geographyData";
 
 /* =====================
    CONSTANT DATA
@@ -8,20 +9,7 @@ import { uploadToCloudinary } from "./cloudinary"; // keep your existing helper
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://jsp-backend-1.onrender.com";
 
-const VILLAGE_NAMES = [
-  "Muchivolu",
-  "Bokkasam Palem",
-  "Munipalle",
-  "Muthukur",
-  "Madanapalle",
-  "Chintalapudi",
-  "Chandragiri",
-  "Kalikiri",
-  "Kavali",
-  "Kodur",
-  "Nellore",
-  "Naidupeta"
-].sort();
+// VILLAGE_NAMES removed as it's now dynamic from backend
 
 const GENDER_OPTIONS = ["Male", "Female", "Others"];
 
@@ -89,14 +77,43 @@ export default function JanasenaForm() {
   // Location & village autocomplete
   const [villageInput, setVillageInput] = useState("");
   const [showVillageList, setShowVillageList] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [formKey, setFormKey] = useState(0); // Forcing re-mount on reset
   const [memberExists, setMemberExists] = useState(false);
   const [memberExistsData, setMemberExistsData] = useState(null);
   const [registerNomineeAsMember, setRegisterNomineeAsMember] = useState(false);
 
-  const filteredVillages = VILLAGE_NAMES.filter((v) =>
-    v.toLowerCase().startsWith(villageInput.toLowerCase())
-  );
+  // Debounce helper
+  const debounceTimer = useRef(null);
+
+  const fetchSuggestions = async (query) => {
+    if (!query || query.trim().length < 1) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    // Local search instead of backend API
+    const lowerQuery = query.toLowerCase().trim();
+    const matches = GEOGRAPHY_DATA.filter(v =>
+      v.village_name.toLowerCase().includes(lowerQuery)
+    ).slice(0, 10);
+
+    setSuggestions(matches);
+    setLoadingSuggestions(false);
+  };
+
+  const handleVillageInputChange = (e) => {
+    const val = e.target.value;
+    setVillageInput(val);
+    setShowVillageList(true);
+
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      fetchSuggestions(val);
+    }, 300);
+  };
 
   // Other location fields
   const [location, setLocation] = useState({
@@ -157,38 +174,6 @@ export default function JanasenaForm() {
     setLocation((p) => ({ ...p, [name]: value }));
   };
 
-  const geographyLookup = async (villageName) => {
-    if (!villageName || !villageName.trim()) return;
-    try {
-      setGeoStatus("Loading...");
-      const res = await fetch(
-        `${API_BASE_URL}/geography/lookup/${encodeURIComponent(villageName.trim())}`
-      );
-      if (res.status === 404) {
-        setGeoStatus("Village not found");
-        return;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
-      console.log("🌍 Geography lookup result:", data);
-
-      // Auto-fill location fields
-      setLocation((p) => ({
-        ...p,
-        panchayathi: data.panchayati_name || data.panchayathi_name || "",
-        mandal: data.mandal_name || "",
-        constituency: data.constituency_name || "",
-        pincode: data.pincode || ""
-        // ward stays empty, user enters manually
-      }));
-
-      setGeoStatus("Address fields auto-filled");
-    } catch (err) {
-      console.error("Geography lookup failed", err);
-      setGeoStatus("Error: " + err.message);
-    }
-  };
 
   const handlePersonChange = (which, data) => {
     if (which === "member") setMemberData(data);
@@ -488,14 +473,6 @@ export default function JanasenaForm() {
         alert("Village/Town Name is required.");
         return;
       }
-      if (!location.ward) {
-        alert("Ward Number is required.");
-        return;
-      }
-      if (!location.pincode) {
-        alert("Pincode is required.");
-        return;
-      }
       if (!location.panchayathi) {
         alert("Panchayathi Name is required.");
         return;
@@ -540,6 +517,15 @@ export default function JanasenaForm() {
       }
       if (!payload.nominee_photo_url) {
         alert("Nominee photo upload is mandatory.");
+        return;
+      }
+
+      if (!memberData.membership) {
+        alert("Member Janasena Membership selection is required (Yes/No).");
+        return;
+      }
+      if (!nomineeData.membership) {
+        alert("Nominee Janasena Membership selection is required (Yes/No).");
         return;
       }
 
@@ -605,30 +591,41 @@ export default function JanasenaForm() {
               <label>Village/Town Name</label>
               <input
                 value={villageInput}
-                onChange={(e) => {
-                  setVillageInput(e.target.value);
-                  setShowVillageList(true);
+                onChange={handleVillageInputChange}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowVillageList(true);
                 }}
-                onFocus={() => setShowVillageList(true)}
-                onBlur={() => setTimeout(() => setShowVillageList(false), 150)}
+                onBlur={() => setTimeout(() => setShowVillageList(false), 200)}
               />
 
-              {showVillageList && (
+              {showVillageList && suggestions.length > 0 && (
                 <ul className="autocomplete-list">
-                  {filteredVillages.map((v) => (
+                  {suggestions.map((v, idx) => (
                     <li
-                      key={v}
+                      key={`${v.village_name}-${idx}`}
                       onMouseDown={(ev) => {
-                        setVillageInput(v);
+                        setVillageInput(v.village_name);
                         setShowVillageList(false);
-                        geographyLookup(v);
+                        // Auto-fill all details immediately from the suggestion object
+                        setLocation((p) => ({
+                          ...p,
+                          panchayathi: v.panchayati_name || "",
+                          mandal: v.mandal_name || "",
+                          constituency: v.constituency_name || "",
+                          pincode: v.pincode || ""
+                        }));
+                        setGeoStatus("Address fields auto-filled");
                       }}
                     >
-                      {v}
+                      <div style={{ fontWeight: '500' }}>{v.village_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                        {v.panchayati_name}, {v.mandal_name}
+                      </div>
                     </li>
                   ))}
                 </ul>
               )}
+              {loadingSuggestions && <small style={{ color: "#666", marginTop: "4px", display: "block" }}>Searching...</small>}
               {geoStatus && <small style={{ color: "#666", marginTop: "4px", display: "block" }}>{geoStatus}</small>}
             </div>
 
@@ -770,7 +767,7 @@ const INITIAL_PERSON_STATE = {
   religion: "",
   reservation: "",
   caste: "",
-  membership: "No",
+  membership: "",
   membershipId: ""
 };
 
@@ -912,9 +909,10 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
         <label style={{ marginTop: 18 }}>Caste</label>
         <input name="caste" value={form.caste} onChange={handleChange} placeholder="Enter Caste" />
 
-        <label style={{ marginTop: 18 }}>Janasena Membership</label>
+        <label style={{ marginTop: 18 }}>Janasena Membership <span style={{ color: "red" }}>*</span></label>
         <div className="row">
           <select name="membership" value={form.membership} onChange={handleMembershipChange} style={{ flex: 1 }}>
+            <option value="">Select</option>
             <option value="No">No</option>
             <option value="Yes">Yes</option>
           </select>

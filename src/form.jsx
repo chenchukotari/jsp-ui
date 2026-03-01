@@ -546,8 +546,13 @@ export default function JanasenaForm() {
       }
       const nomineeAge = calculateAge(nomineeData.dob);
       if (nomineeAge < 18 || nomineeAge > 75) {
-        alert(`Nominee must be between 18 and 75 years old. Current age: ${nomineeAge}`);
-        return;
+        if (registerNomineeAsMember) {
+          alert(`Nominee must be between 18 and 75 years old to be registered as a member. Current age: ${nomineeAge}`);
+          return;
+        } else {
+          const confirmSub = window.confirm("Please try to give valid nominee, still you want to continue with this nominee?");
+          if (!confirmSub) return;
+        }
       }
 
       console.log("📦 FINAL PAYLOAD", payload);

@@ -28,6 +28,7 @@ const PROFESSION_OPTIONS = [
   "Private Sector",
   "Business / Self Employed",
   "Farmer",
+  "House wife",
   "Daily Labourer",
   "Electrician",
   "Driver",
@@ -475,7 +476,7 @@ export default function JanasenaForm() {
         return;
       }
       if (!location.panchayathi) {
-        alert("Panchayathi Name is required.");
+        alert("Panchayat or Muncipality is required.");
         return;
       }
       if (!location.mandal) {
@@ -645,9 +646,9 @@ export default function JanasenaForm() {
               <input value={location.pincode} onChange={(e) => handleLocationChange("pincode", e.target.value)} />
             </div>
 
-            {/* Second row: Panchayathi Name, Mandal Name, Constituency Name */}
+            {/* Second row: Panchayat or Muncipality, Mandal Name, Constituency Name */}
             <div>
-              <label>Panchayathi Name</label>
+              <label>Panchayat or Muncipality</label>
               <input value={location.panchayathi} onChange={(e) => handleLocationChange("panchayathi", e.target.value)} />
             </div>
 

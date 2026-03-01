@@ -32,7 +32,8 @@ const PROFESSION_OPTIONS = [
   "Electrician",
   "Driver",
   "Doctor",
-  "Software Engineer"
+  "Software Engineer",
+  "Student"
 ];
 
 const RELIGION_OPTIONS = [

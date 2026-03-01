@@ -146,6 +146,35 @@ export default function JanasenaForm() {
     membershipId: ""
   });
 
+  const calculateAge = (dobStr) => {
+    if (!dobStr) return 0;
+    const parts = dobStr.split("/");
+    if (parts.length !== 3) return 0;
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const dob = new Date(year, month, day);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const memberAge = memberData.dob ? calculateAge(memberData.dob) : null;
+  const nomineeAge = nomineeData.dob ? calculateAge(nomineeData.dob) : null;
+
+  const isNomineeAgeInvalidForMember = nomineeAge !== null && (nomineeAge < 18 || nomineeAge > 70);
+  const isMemberAgeInvalid = memberAge !== null && (memberAge < 18 || memberAge > 70);
+
+  useEffect(() => {
+    if (isNomineeAgeInvalidForMember && registerNomineeAsMember) {
+      setRegisterNomineeAsMember(false);
+    }
+  }, [isNomineeAgeInvalidForMember]);
+
 
   // Images state keyed by owner: 'member' or 'nominee'
   const [images, setImages] = useState({
@@ -396,22 +425,6 @@ export default function JanasenaForm() {
   /* =====================
      SUBMIT
      ===================== */
-  const calculateAge = (dobStr) => {
-    if (!dobStr) return 0;
-    const parts = dobStr.split("/");
-    if (parts.length !== 3) return 0;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    const dob = new Date(year, month, day);
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const handleSubmit = async () => {
     try {
@@ -698,6 +711,7 @@ export default function JanasenaForm() {
               onChange={(d) => handlePersonChange("member", d)}
               onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "member")}
               isSearching={isSearching.member}
+              isAgeInvalid={isMemberAgeInvalid}
             />
           </div>
           <PersonCard
@@ -708,6 +722,7 @@ export default function JanasenaForm() {
             onChange={(d) => handlePersonChange("nominee", d)}
             onAadhaarBlur={(aadhaar) => checkPersonExists(aadhaar, "nominee")}
             isSearching={isSearching.nominee}
+            isAgeInvalid={isNomineeAgeInvalidForMember}
           />
         </div>
 
@@ -730,6 +745,7 @@ export default function JanasenaForm() {
             type="checkbox"
             checked={registerNomineeAsMember}
             onChange={(e) => setRegisterNomineeAsMember(e.target.checked)}
+            disabled={isNomineeAgeInvalidForMember}
             style={{
               width: 18,
               height: 18,
@@ -747,7 +763,12 @@ export default function JanasenaForm() {
           </label>
         </div>
         <div className="actions">
-          <button className="btn primary" onClick={handleSubmit} disabled={memberExists} style={memberExists ? { opacity: 0.6, cursor: 'not-allowed' } : {}}>
+          <button
+            className="btn primary"
+            onClick={handleSubmit}
+            disabled={memberExists || isMemberAgeInvalid}
+            style={(memberExists || isMemberAgeInvalid) ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+          >
             Submit
           </button>
           <button className="btn" onClick={handleReset}>
@@ -778,7 +799,7 @@ const INITIAL_PERSON_STATE = {
   membershipId: ""
 };
 
-function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearching }) {
+function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearching, isAgeInvalid }) {
   const [form, setForm] = useState({
     ...INITIAL_PERSON_STATE,
     ...value
@@ -839,6 +860,11 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
           <div>
             <label>DOB</label>
             <input name="dob" value={form.dob} onChange={handleChange} placeholder="DD/MM/YYYY" />
+            {isAgeInvalid && (
+              <div style={{ color: '#e11b22', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>
+                Age must be between 18 and 70.
+              </div>
+            )}
           </div>
           <div>
             <label>Gender</label>

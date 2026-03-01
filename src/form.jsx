@@ -520,6 +520,30 @@ export default function JanasenaForm() {
         alert("Member photo upload is mandatory.");
         return;
       }
+      if (!memberData.gender) {
+        alert("Member Gender is required.");
+        return;
+      }
+      if (!memberData.education) {
+        alert("Member Qualification is required.");
+        return;
+      }
+      if (!memberData.profession) {
+        alert("Member Profession is required.");
+        return;
+      }
+      if (!memberData.religion) {
+        alert("Member Religion is required.");
+        return;
+      }
+      if (!memberData.reservation) {
+        alert("Member Reservation is required.");
+        return;
+      }
+      if (!memberData.caste) {
+        alert("Member Caste is required.");
+        return;
+      }
 
       if (!payload.nominee_id) {
         alert("Nominee Aadhaar number is required.");
@@ -535,6 +559,30 @@ export default function JanasenaForm() {
       }
       if (!payload.nominee_photo_url) {
         alert("Nominee photo upload is mandatory.");
+        return;
+      }
+      if (!nomineeData.gender) {
+        alert("Nominee Gender is required.");
+        return;
+      }
+      if (!nomineeData.education) {
+        alert("Nominee Qualification is required.");
+        return;
+      }
+      if (!nomineeData.profession) {
+        alert("Nominee Profession is required.");
+        return;
+      }
+      if (!nomineeData.religion) {
+        alert("Nominee Religion is required.");
+        return;
+      }
+      if (!nomineeData.reservation) {
+        alert("Nominee Reservation is required.");
+        return;
+      }
+      if (!nomineeData.caste) {
+        alert("Nominee Caste is required.");
         return;
       }
 
@@ -863,7 +911,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
       </div>
 
       <div className="card-body">
-        <label>Full Name</label>
+        <label>Full Name <span style={{ color: "red" }}>*</span></label>
         <input
           name="fullName"
           value={form.fullName}
@@ -874,7 +922,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
 
         <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
           <div>
-            <label>DOB</label>
+            <label>DOB <span style={{ color: "red" }}>*</span></label>
             <input name="dob" value={form.dob} onChange={handleChange} placeholder="DD/MM/YYYY" />
             {isAgeInvalid && (
               <div style={{ color: '#e11b22', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>
@@ -883,7 +931,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
             )}
           </div>
           <div>
-            <label>Gender</label>
+            <label>Gender <span style={{ color: "red" }}>*</span></label>
             <select name="gender" value={form.gender} onChange={handleChange}>
               <option value="">Select Gender</option>
               {GENDER_OPTIONS.map((g) => (
@@ -910,7 +958,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
           maxLength={14}
         />
 
-        <label style={{ marginTop: 18 }}>Mobile Number</label>
+        <label style={{ marginTop: 18 }}>Mobile Number <span style={{ color: "red" }}>*</span></label>
         <input name="mobileNumber" value={form.mobileNumber} onChange={handleChange} placeholder="10 digit mobile number" />
         {isMobileInvalid && (
           <div style={{ color: '#e11b22', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>
@@ -920,7 +968,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
 
         <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
           <div>
-            <label>Qualification</label>
+            <label>Qualification <span style={{ color: "red" }}>*</span></label>
             <select name="education" value={form.education} onChange={handleChange}>
               <option value="">Select</option>
               {EDUCATION_OPTIONS.map((e) => (
@@ -929,7 +977,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
             </select>
           </div>
           <div>
-            <label>Profession</label>
+            <label>Profession <span style={{ color: "red" }}>*</span></label>
             <select name="profession" value={form.profession} onChange={handleChange}>
               <option value="">Select</option>
               {PROFESSION_OPTIONS.map((p) => (
@@ -941,7 +989,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
 
         <div className="grid-2" style={{ padding: 0, marginTop: 18 }}>
           <div>
-            <label>Religion</label>
+            <label>Religion <span style={{ color: "red" }}>*</span></label>
             <select name="religion" value={form.religion} onChange={handleChange}>
               <option value="">Select</option>
               {RELIGION_OPTIONS.map((r) => (
@@ -950,7 +998,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
             </select>
           </div>
           <div>
-            <label>Reservation</label>
+            <label>Reservation <span style={{ color: "red" }}>*</span></label>
             <select name="reservation" value={form.reservation} onChange={handleReservationChange}>
               <option value="">Select</option>
               {RESERVATION_OPTIONS.map((r) => (
@@ -960,7 +1008,7 @@ function PersonCard({ title, which, value = {}, onChange, onAadhaarBlur, isSearc
           </div>
         </div>
 
-        <label style={{ marginTop: 18 }}>Caste</label>
+        <label style={{ marginTop: 18 }}>Caste <span style={{ color: "red" }}>*</span></label>
         <input name="caste" value={form.caste} onChange={handleChange} placeholder="Enter Caste" />
 
         <label style={{ marginTop: 18 }}>Janasena Membership <span style={{ color: "red" }}>*</span></label>

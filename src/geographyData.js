@@ -17,6 +17,7 @@ export const GEOGRAPHY_DATA = [
     { "village_name": "Empedu", "panchayati_name": "Empedu", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },
     { "village_name": "Erragudipadu", "panchayati_name": "Erragudipadu", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },
     { "village_name": "Velavedu", "panchayati_name": "Gangalapudi", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },
+    { "village_name": "Gangalapudi", "panchayati_name": "Gangalapudi", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },
     { "village_name": "Govindaraopalle", "panchayati_name": "Govindarau Palle", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },
     { "village_name": "Anjaneya Puram", "panchayati_name": "Govindarau Palle", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },
     { "village_name": "Mamidi Gunta", "panchayati_name": "Govindarau Palle", "mandal_name": "Sri Kalahasti", "constituency_name": "Sri Kalahasti" },

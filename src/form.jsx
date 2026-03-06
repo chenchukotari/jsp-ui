@@ -84,7 +84,7 @@ export default function JanasenaForm() {
   const [formKey, setFormKey] = useState(0); // Forcing re-mount on reset
   const [memberExists, setMemberExists] = useState(false);
   const [memberExistsData, setMemberExistsData] = useState(null);
-  const [registerNomineeAsMember, setRegisterNomineeAsMember] = useState(false);
+  const [registerNomineeAsMember, setRegisterNomineeAsMember] = useState(true);
 
   // Debounce helper
   const debounceTimer = useRef(null);
@@ -421,7 +421,7 @@ export default function JanasenaForm() {
     setGeoStatus("");
     setMemberExists(false);
     setMemberExistsData(null);
-    setRegisterNomineeAsMember(false);
+    setRegisterNomineeAsMember(true);
     setFormKey(prev => prev + 1);
   };
 

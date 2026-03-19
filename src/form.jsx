@@ -504,6 +504,11 @@ export default function JanasenaForm() {
         return;
       }
 
+      if (location.constituency.trim().toLowerCase() !== "sri kalahasti") {
+        alert("Only members of Sri Kalahasti constituency are allowed to register.");
+        return;
+      }
+
       if (!payload.aadhaar_number) {
         alert("Member Aadhaar number is required.");
         return;

@@ -86,6 +86,27 @@ export default function JanasenaForm() {
   const [memberExistsData, setMemberExistsData] = useState(null);
   const [registerNomineeAsMember, setRegisterNomineeAsMember] = useState(true);
 
+  // Form filled by state and history
+  const [filledBy, setFilledBy] = useState("");
+  const [filledByMobile, setFilledByMobile] = useState("");
+  const [filledByHistory, setFilledByHistory] = useState([]);
+  const [showFilledByList, setShowFilledByList] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("jsp_filled_by_history");
+      if (stored) {
+        setFilledByHistory(JSON.parse(stored));
+      }
+    } catch (err) { }
+  }, []);
+
+  const handleFilledBySelect = (item) => {
+    setFilledBy(item.name);
+    setFilledByMobile(item.mobile);
+    setShowFilledByList(false);
+  };
+
   // Debounce helper
   const debounceTimer = useRef(null);
 
@@ -422,6 +443,7 @@ export default function JanasenaForm() {
     setMemberExists(false);
     setMemberExistsData(null);
     setRegisterNomineeAsMember(true);
+    // Note: intentionally keeping filledBy & filledByMobile intact for next entry
     setFormKey(prev => prev + 1);
   };
 
@@ -483,7 +505,9 @@ export default function JanasenaForm() {
         nominee_membership_id: nomineeData.membershipId || "",
         nominee_aadhaar_image_url: images.nominee.aadhaarUrl || null,
         nominee_photo_url: images.nominee.photoUrl || null,
-        register_nominee_as_member: registerNomineeAsMember
+        register_nominee_as_member: registerNomineeAsMember,
+        filled_by: filledBy || "",
+        filled_by_mobile: filledByMobile || ""
       };
 
       // Validation
@@ -639,6 +663,22 @@ export default function JanasenaForm() {
         const detail = errorData?.detail || `HTTP ${res.status}`;
         throw new Error(detail);
       }
+
+      // Save filled by details to history
+      if (filledBy && filledByMobile) {
+        const history = [...filledByHistory];
+        const existing = history.find(h => h.name.toLowerCase() === filledBy.trim().toLowerCase());
+        if (!existing) {
+          history.push({ name: filledBy.trim(), mobile: filledByMobile.trim() });
+          setFilledByHistory(history);
+          localStorage.setItem("jsp_filled_by_history", JSON.stringify(history));
+        } else if (existing.mobile !== filledByMobile.trim()) {
+          existing.mobile = filledByMobile.trim();
+          setFilledByHistory(history);
+          localStorage.setItem("jsp_filled_by_history", JSON.stringify(history));
+        }
+      }
+
       const data = await res.json();
       console.log("✅ Submitted, resetting form", data);
       handleReset();
@@ -836,6 +876,46 @@ export default function JanasenaForm() {
             </div>
           </label>
         </div>
+
+        <div className="section" style={{ marginTop: 24 }}>
+          <div className="grid-2">
+            <div style={{ position: "relative" }}>
+              <label>Form filled by (Name)</label>
+              <input
+                value={filledBy}
+                onChange={(e) => {
+                  setFilledBy(e.target.value);
+                  setShowFilledByList(true);
+                }}
+                onFocus={() => { if (filledByHistory.length > 0) setShowFilledByList(true); }}
+                onBlur={() => setTimeout(() => setShowFilledByList(false), 200)}
+                placeholder="Name of the person filling form"
+              />
+              {showFilledByList && filledBy && (
+                <ul className="autocomplete-list">
+                  {filledByHistory
+                    .filter(h => h.name.toLowerCase().includes(filledBy.toLowerCase()))
+                    .map((h, idx) => (
+                      <li key={idx} onMouseDown={() => handleFilledBySelect(h)}>
+                        <div style={{ fontWeight: '500' }}>{h.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#666' }}>{h.mobile}</div>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <label>His Mobile Number</label>
+              <input
+                value={filledByMobile}
+                onChange={(e) => setFilledByMobile(e.target.value.replace(/\\D/g, '').slice(0, 10))}
+                maxLength={10}
+                placeholder="10 digit mobile number"
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="actions">
           <button
             className="btn primary"

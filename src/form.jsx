@@ -731,7 +731,8 @@ export default function JanasenaForm() {
                           pincode: v.pincode || ""
                         }));
                         setGeoStatus("Address fields auto-filled");
-                        if (v.constituency_name && v.constituency_name.trim().toLowerCase() !== "sri kalahasti") {
+                        const cName = v.constituency_name ? v.constituency_name.trim() : "";
+                        if (cName && cName !== "Sri Kalahasti" && cName !== "SriKalahasti") {
                           setTimeout(() => {
                             alert("Only members of Sri Kalahasti constituency are allowed to register.");
                             setLocation((p) => ({ ...p, constituency: "" }));
@@ -778,8 +779,8 @@ export default function JanasenaForm() {
                 value={location.constituency}
                 onChange={(e) => handleLocationChange("constituency", e.target.value)}
                 onBlur={(e) => {
-                  const val = e.target.value;
-                  if (val && val.trim().toLowerCase() !== "sri kalahasti") {
+                  const val = e.target.value ? e.target.value.trim() : "";
+                  if (val && val !== "Sri Kalahasti" && val !== "SriKalahasti") {
                     alert("Only members of Sri Kalahasti constituency are allowed to register.");
                     handleLocationChange("constituency", "");
                   }
@@ -905,10 +906,10 @@ export default function JanasenaForm() {
               )}
             </div>
             <div>
-              <label>His Mobile Number</label>
+              <label>Mobile Number</label>
               <input
                 value={filledByMobile}
-                onChange={(e) => setFilledByMobile(e.target.value.replace(/\\D/g, '').slice(0, 10))}
+                onChange={(e) => setFilledByMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 maxLength={10}
                 placeholder="10 digit mobile number"
               />

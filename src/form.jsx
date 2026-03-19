@@ -691,6 +691,12 @@ export default function JanasenaForm() {
                           pincode: v.pincode || ""
                         }));
                         setGeoStatus("Address fields auto-filled");
+                        if (v.constituency_name && v.constituency_name.trim().toLowerCase() !== "sri kalahasti") {
+                          setTimeout(() => {
+                            alert("Only members of Sri Kalahasti constituency are allowed to register.");
+                            setLocation((p) => ({ ...p, constituency: "" }));
+                          }, 10);
+                        }
                       }}
                     >
                       <div style={{ fontWeight: '500' }}>{v.village_name}</div>
@@ -728,7 +734,17 @@ export default function JanasenaForm() {
 
             <div>
               <label>Constituency Name</label>
-              <input value={location.constituency} onChange={(e) => handleLocationChange("constituency", e.target.value)} />
+              <input
+                value={location.constituency}
+                onChange={(e) => handleLocationChange("constituency", e.target.value)}
+                onBlur={(e) => {
+                  const val = e.target.value;
+                  if (val && val.trim().toLowerCase() !== "sri kalahasti") {
+                    alert("Only members of Sri Kalahasti constituency are allowed to register.");
+                    handleLocationChange("constituency", "");
+                  }
+                }}
+              />
             </div>
 
             {/* Latitude and Longitude Removed */}

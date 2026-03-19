@@ -528,7 +528,8 @@ export default function JanasenaForm() {
         return;
       }
 
-      if (location.constituency.trim().toLowerCase() !== "sri kalahasti") {
+      const submitCName = location.constituency ? location.constituency.trim().toLowerCase() : "";
+      if (submitCName !== "sri kalahasti" && submitCName !== "srikalahasti") {
         alert("Only members of Sri Kalahasti constituency are allowed to register.");
         return;
       }
@@ -731,8 +732,8 @@ export default function JanasenaForm() {
                           pincode: v.pincode || ""
                         }));
                         setGeoStatus("Address fields auto-filled");
-                        const cName = v.constituency_name ? v.constituency_name.trim() : "";
-                        if (cName && cName !== "Sri Kalahasti" && cName !== "SriKalahasti") {
+                        const cName = v.constituency_name ? v.constituency_name.trim().toLowerCase() : "";
+                        if (cName && cName !== "sri kalahasti" && cName !== "srikalahasti") {
                           setTimeout(() => {
                             alert("Only members of Sri Kalahasti constituency are allowed to register.");
                             setLocation((p) => ({ ...p, constituency: "" }));
@@ -779,8 +780,8 @@ export default function JanasenaForm() {
                 value={location.constituency}
                 onChange={(e) => handleLocationChange("constituency", e.target.value)}
                 onBlur={(e) => {
-                  const val = e.target.value ? e.target.value.trim() : "";
-                  if (val && val !== "Sri Kalahasti" && val !== "SriKalahasti") {
+                  const val = e.target.value ? e.target.value.trim().toLowerCase() : "";
+                  if (val && val !== "sri kalahasti" && val !== "srikalahasti") {
                     alert("Only members of Sri Kalahasti constituency are allowed to register.");
                     handleLocationChange("constituency", "");
                   }

@@ -891,7 +891,7 @@ export default function JanasenaForm() {
         <div className="section" style={{ marginTop: 24 }}>
           <div className="grid-2">
             <div style={{ position: "relative" }}>
-              <label>Form filled by (Name)</label>
+              <label>Form filled by (Name) <span style={{ color: "red" }}>*</span></label>
               <input
                 value={filledBy}
                 onChange={(e) => {
@@ -916,7 +916,7 @@ export default function JanasenaForm() {
               )}
             </div>
             <div>
-              <label>Mobile Number</label>
+              <label>Mobile Number <span style={{ color: "red" }}>*</span></label>
               <input
                 value={filledByMobile}
                 onChange={(e) => setFilledByMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}

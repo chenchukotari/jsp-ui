@@ -616,6 +616,15 @@ export default function JanasenaForm() {
         return;
       }
 
+      if (!filledBy || !filledBy.trim()) {
+        alert("Form filled by (Name) is required.");
+        return;
+      }
+      if (!filledByMobile || filledByMobile.length < 10) {
+        alert("Form filled by Mobile Number must be 10 digits.");
+        return;
+      }
+
       if (!memberData.membership) {
         alert("Member Janasena Membership selection is required (Yes/No).");
         return;
